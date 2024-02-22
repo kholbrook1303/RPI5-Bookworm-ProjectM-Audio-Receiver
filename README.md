@@ -4,7 +4,7 @@
 The ProjectM Audio Receiver concept will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by either a microphone input (capturing surrounding audio) or an auxiliary input (capturing audio through 3.5mm audio cable).  
 
 ## But why?
-The background history behind this was to have visualizations on the television that reacted to a turntable that was playing in the sample room.  Growing up I used to enjoy using Winamp with the Milkdrop visualizations build by Ryan Geiss.  These visualizations were proprietary on Windows but have since been ported to other OSs with the help of the ProjectM team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
+The background history behind this was to have visualizations on the television that reacted to a turntable that was playing in the same room.  Growing up I used to enjoy using Winamp with the Milkdrop visualizations build by Ryan Geiss.  These visualizations were proprietary on Windows but have since been ported to other OSs with the help of the ProjectM team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
 
 ## Coming Soon...
 * Better handling/setup of devices used
@@ -66,7 +66,7 @@ cmake --build . --parallel && sudo cmake --build . --target install
 ## Building libPico-dev
 Because the current repository contains a problematic version of libPico-dev, we must build from source.
 
-Obtain the a tested working build of libPico-dev
+Obtain a tested working build of libPico-dev
 ```
 cd ~
 wget https://pocoproject.org/releases/poco-1.12.5/poco-1.12.5-all.tar.bz2
@@ -78,7 +78,7 @@ cmake ..
 cmake --build . --config Release
 sudo cmake --build . --target install
 ```
-You will have to move the libs for projectMSDL frontend to work
+You will have to move the libs for projectMSDL frontend to work (Needs further investigation)
 ```
 sudo cp /usr/local/lib/libPoco* /usr/lib/
 ```
@@ -105,8 +105,7 @@ sudo chmod 777 -R /opt/ProjectMSDL
 cp -r ~/frontend-sdl2/build/src/* /opt/ProjectMSDL/
 ```
 
-Adjust projectMSDL.properties to suit the Raspberry Pi
-Change the following configuratios to the below:
+Adjust projectMSDL.properties to suit the Raspberry Pi.  Change the following configuratios to the below:
 ```
 window.fullscreen = true
 projectM.meshX = 64
@@ -128,11 +127,11 @@ git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver
 
 Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
-cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/projectMAR.sh /opt/ProjectMSDL/
+cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
 sudo chmod +x /opt/ProjectMSDL/projectMAR.sh
 ```
 
-### Add Devices to ProjectM Audio Receiver Shell Script
+### Add Devices to ProjectM Audio Receiver startup script
 You will need to edit the bash script to include the device name(s) that you are connecting.
 
 Update /opt/ProjectMSDL/projectMAR.sh to include the devices for the following parameters:
@@ -146,8 +145,8 @@ SOURCE_AUX_DEVICE="<Full Device Name>"          # This is only for aux.  If none
 SINK_DEVICEs=("<Full Device Name>" "<Full Device Name>")
 ```
 
-### Test ProjectM Audio Receiver to ensure there are no issues
-Run the following to ensure there are no issues:
+### Test to ensure there are no issues
+Run the following to execute ProjectM Audio Receiver:
 ```
 /opt/ProjectMSDL/projectMAR.sh
 ```
