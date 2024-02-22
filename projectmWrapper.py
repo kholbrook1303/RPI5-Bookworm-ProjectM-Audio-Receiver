@@ -4,6 +4,7 @@ import logging.handlers
 import os
 import re
 import signal
+import sys
 import time
 
 from configparser import ConfigParser
@@ -108,10 +109,10 @@ class ProjectmWrapper:
                 
             time.sleep(1)
         
-    def execute(self):        
+    def execute(self, beatSensitivity=2.0):        
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
         self.projectm_process = Popen(
-            app_path, 
+            [app_path, '--beatSensitivity=' + str(beatSensitivity)],
             stdin=PIPE, stderr=PIPE, stdout=PIPE, 
             universal_newlines=True
             )
@@ -168,7 +169,7 @@ def main():
             
     log.info('Closing down all threads/processes...')
     pmw.thread_event.set()
-    pmw.close()
+    pmw.stop()
     sys.exit(0)
         
 

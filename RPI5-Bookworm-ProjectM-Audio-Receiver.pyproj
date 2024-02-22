@@ -22,16 +22,16 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="wrapper.py" />
+    <Compile Include="projectmWrapper.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="LICENSE" />
     <Content Include="projectMAR.sh" />
-    <Content Include="projectMARv1.sh" />
-    <Content Include="projectMSDL.properties" />
     <Content Include="projectMSDL.sh" />
     <Content Include="README.md" />
-    <Content Include="test.sh" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="backup\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
