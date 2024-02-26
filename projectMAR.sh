@@ -142,6 +142,6 @@ then
   amixer sset 'Capture' 75%     # Drop the default capture device to 75% to avoid distortion
   pactl load-module module-loopback source=$AUX_DEVICE_SOURCE sink=$SNK_DEVICE_SOURCE latency_msec=20
 else
-  echo "No matching device found!"
-  exit 1
+  echo "Setting bluetooth device as default"
+  amixer sset 'Capture' 100%                # Increase the default capture device to 100% to increase sound capture
 fi
