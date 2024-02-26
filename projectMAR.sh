@@ -131,6 +131,7 @@ amixer sset 'Master' 100%
 /usr/bin/python3.11 /opt/ProjectMSDL/projectmWrapper.py &>/dev/null & disown;
 
 # Handle audio based on connected device
+pactl unload-module module-loopback         # Ensure the loopback module is not loaded
 if [ $MIC_DEVICE == true ]
 then
   pactl set-default-source "$MIC_DEVICE_SOURCE"
@@ -139,7 +140,7 @@ elif [ $AUX_DEVICE == true ]
 then
   pactl set-default-source "$AUX_DEVICE_SOURCE"
   amixer sset 'Capture' 75%     # Drop the default capture device to 75% to avoid distortion
-  arecord --format=S16_LE --rate=44100 --nonblock | aplay --format=S16_LE --rate=44100
+  pactl load-module module-loopback source=$AUX_DEVICE_SOURCE sink=$SNK_DEVICE_SOURCE latency_msec=20
 else
   echo "No matching device found!"
   exit 1
