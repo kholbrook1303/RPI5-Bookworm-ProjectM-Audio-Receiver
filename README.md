@@ -112,6 +112,68 @@ projectM.meshX = 64
 projectM.meshY = 32
 ```
 
+## Setup A2DP bluetooth audio receiver
+Make the Pi permanently discoverable as an A2DP Sink.
+```
+sudo nano /etc/bluetooth/main.conf
+```
+
+And add / uncomment / change
+```
+...
+Class = 0x41C
+...
+DiscoverableTimeout = 0
+```
+
+```
+sudo systemctl restart bluetooth
+```
+
+```
+bluetoothctl
+[bluetooth]# power on
+[bluetooth]# discoverable on
+[bluetooth]# pairable on
+[bluetooth]# agent on
+```
+
+Reboot
+```
+sudo reboot
+```
+
+```
+bluetoothctl
+```
+Pair your device then trust it when you see Device <MAC> Connected: yes
+```
+trust DC:DC:E2:FF:04:A1
+```
+
+Auto pairing / trusting / no PIN
+```
+sudo apt-get install bluez-tools
+```
+
+```
+sudo nano /etc/systemd/system/bt-agent.service
+```
+
+```
+[Unit]
+Description=Bluetooth Auth Agent
+After=bluetooth.service
+PartOf=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+
+[Install]
+WantedBy=bluetooth.target
+```
+
 ## Setup ProjectM Audio Receiver
 ### Install dependencies
 xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang
