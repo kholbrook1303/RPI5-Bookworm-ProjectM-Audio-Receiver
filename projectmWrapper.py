@@ -154,7 +154,7 @@ def main():
     log.info('Executing ProjectMSDL and monitorring the presets for hangs...')
     pmw.execute()
     
-    while True:
+    while not sm.exit:
         try:
             if pmw.projectm_process.poll() != None:
                 log.warning('ProjectM has terminated!')
