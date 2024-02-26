@@ -8,7 +8,6 @@ The background history behind this was to have visualizations on the television 
 
 ## Coming Soon...
 * Better handling/setup of devices used
-* A2DP Audio Streaming: There is still work to be doe to see if the onboard Bluetooth chip is capable of A2DP audio streaming.  A2DP streaming needs to be supported whether it be with the onboard chip or a USB dongle.
 * User Interface:  Include an optional startup UI with a selection for the input/output devices the user would like to connect to allowing multiple devices to be connected simultaneously.
 
 ## Hardware Requirements:
