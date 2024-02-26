@@ -2,6 +2,7 @@ import json
 import logging
 import logging.handlers
 import os
+import random
 import re
 import signal
 import sys
@@ -72,7 +73,11 @@ class ProjectmWrapper:
         
         self.projectm_process = None
         self.preset_start = 0
+        self.preset_shuffle = self.config['projectm']['projectM.shuffleEnabled']
         self.preset_display_duration = int(self.config['projectm']['projectM.displayDuration'])
+        self.preset_path = self.config['projectm']['projectM.presetPath'].replace(
+            '${application.dir}', APP_ROOT
+            )
         
     def _get_config(self):
         config_path = os.path.join(APP_ROOT, 'projectMSDL.properties')
@@ -107,8 +112,35 @@ class ProjectmWrapper:
                     xautomation_process.communicate(input=b'key n\n')
                 
             time.sleep(1)
+            
+    def _manage_playlist(self):
+        if self.preset_shuffle == 'false':
+            presets = list()
+            for root, dirs, files in os.walk(self.preset_path):
+                for name in files:
+                    preset_path = os.path.join(root, name)
+                    if not preset_path in presets:
+                        presets.append(preset_path)
+                        
+            random.shuffle(presets)
+            index = 0
+            for preset in presets:
+                index += 1
+                idx_pad = format(index, '06')
+                preset_root, preset_name = preset.rsplit('/', 1)
+                current_idx, preset_name_stripped = preset_name.split(' ', 1)
+                
+                dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
+                log.debug('Renaming {0} to {1}'.format(preset, dst))
+                try:
+                    os.rename(preset, dst)
+                except Exception as e:
+                    log.error('Failed to rename preset {0}: {1}'.format(preset, e))
+                
         
-    def execute(self, beatSensitivity=2.0):        
+    def execute(self, beatSensitivity=2.0):   
+        self._manage_playlist()
+    
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
         self.projectm_process = Popen(
             [app_path, '--beatSensitivity=' + str(beatSensitivity)],
