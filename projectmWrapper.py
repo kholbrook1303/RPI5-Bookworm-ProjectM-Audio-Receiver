@@ -25,13 +25,12 @@ class JsonFormatter(logging.Formatter):
         json_result = {
         "timestamp": f"{datetime.now()}",
         "level": "ERROR",
-        "Module": "Collections_VTHandler",
+        "Module": "projectm_wrapper",
         "message": f"{result}",
         }
         return json.dumps(json_result)
 
 def log_init(name, level=logging.DEBUG, **kwargs):
-    #formatter = logging.Formatter('%(asctime)s [%(name)s] %(levelname)s %(message)s')
     json_formatter = JsonFormatter(
         '{"timestamp":"%(asctime)s", "level":"%(levelname)s", "Module":"%(module)s", "message":"%(message)s"}'
         )
@@ -56,7 +55,7 @@ def log_init(name, level=logging.DEBUG, **kwargs):
     log.setLevel(level)
     
 class SignalMonitor:
-  kill_now = False
+  exit = False
   def __init__(self):
     signal.signal(signal.SIGINT, self.set_exit)
     signal.signal(signal.SIGTERM, self.set_exit)
@@ -88,7 +87,7 @@ class ProjectmWrapper:
     def _monitor_output(self):
         preset_regex = r'^INFO: Displaying preset: (.*)$'
         for stdout_line in iter(self.projectm_process.stderr.readline, ""):
-            log.debug('ProjectM Output: {0}'.format(stdout_line))
+            log.debug('ProjectM Output: {0}'.format(stdout_line.strip()))
             
             match = re.match(preset_regex, stdout_line, re.I)
             if match:
