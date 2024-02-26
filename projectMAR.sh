@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# Check current HDMI configuration and set the resultion to 1280x720.
+# With minor slowness you can set to 1920x1080 however I find this to be more seamless 
+RESOLUTION="1280x720"
+while read line
+    do
+    #echo "wlr-randr line: $line"
+    device=($(echo $line | grep -Po "(HDMI-\w{1}-\d{1})"))
+    if [[ -z "${device[1]}" ]]; then
+        :
+    else
+        echo "Found display device ${device[1]}"
+        echo "Setting resolution to $RESOLUTION"
+        wlr-randr --output  ${device[1]} --mode $RESOLUTION
+    fi
+    done<<EOF
+    $(wlr-randr)
+EOF
+
 # Source profile for mic and aux;  If either does not have a device just put null
 # To see a list of devices run 'pactl list sources short'
 SOURCE_MIC_DEVICES=(
