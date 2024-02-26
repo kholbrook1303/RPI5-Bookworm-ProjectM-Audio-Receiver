@@ -2,6 +2,7 @@ import json
 import logging
 import logging.handlers
 import os
+import random
 import re
 import signal
 import sys
@@ -25,13 +26,12 @@ class JsonFormatter(logging.Formatter):
         json_result = {
         "timestamp": f"{datetime.now()}",
         "level": "ERROR",
-        "Module": "Collections_VTHandler",
+        "Module": "projectm_wrapper",
         "message": f"{result}",
         }
         return json.dumps(json_result)
 
 def log_init(name, level=logging.DEBUG, **kwargs):
-    #formatter = logging.Formatter('%(asctime)s [%(name)s] %(levelname)s %(message)s')
     json_formatter = JsonFormatter(
         '{"timestamp":"%(asctime)s", "level":"%(levelname)s", "Module":"%(module)s", "message":"%(message)s"}'
         )
@@ -56,7 +56,7 @@ def log_init(name, level=logging.DEBUG, **kwargs):
     log.setLevel(level)
     
 class SignalMonitor:
-  kill_now = False
+  exit = False
   def __init__(self):
     signal.signal(signal.SIGINT, self.set_exit)
     signal.signal(signal.SIGTERM, self.set_exit)
@@ -73,7 +73,11 @@ class ProjectmWrapper:
         
         self.projectm_process = None
         self.preset_start = 0
+        self.preset_shuffle = self.config['projectm']['projectM.shuffleEnabled']
         self.preset_display_duration = int(self.config['projectm']['projectM.displayDuration'])
+        self.preset_path = self.config['projectm']['projectM.presetPath'].replace(
+            '${application.dir}', APP_ROOT
+            )
         
     def _get_config(self):
         config_path = os.path.join(APP_ROOT, 'projectMSDL.properties')
@@ -88,7 +92,7 @@ class ProjectmWrapper:
     def _monitor_output(self):
         preset_regex = r'^INFO: Displaying preset: (.*)$'
         for stdout_line in iter(self.projectm_process.stderr.readline, ""):
-            log.debug('ProjectM Output: {0}'.format(stdout_line))
+            log.debug('ProjectM Output: {0}'.format(stdout_line.strip()))
             
             match = re.match(preset_regex, stdout_line, re.I)
             if match:
@@ -108,8 +112,35 @@ class ProjectmWrapper:
                     xautomation_process.communicate(input=b'key n\n')
                 
             time.sleep(1)
+            
+    def _manage_playlist(self):
+        if self.preset_shuffle == 'false':
+            presets = list()
+            for root, dirs, files in os.walk(self.preset_path):
+                for name in files:
+                    preset_path = os.path.join(root, name)
+                    if not preset_path in presets:
+                        presets.append(preset_path)
+                        
+            random.shuffle(presets)
+            index = 0
+            for preset in presets:
+                index += 1
+                idx_pad = format(index, '06')
+                preset_root, preset_name = preset.rsplit('/', 1)
+                current_idx, preset_name_stripped = preset_name.split(' ', 1)
+                
+                dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
+                log.debug('Renaming {0} to {1}'.format(preset, dst))
+                try:
+                    os.rename(preset, dst)
+                except Exception as e:
+                    log.error('Failed to rename preset {0}: {1}'.format(preset, e))
+                
         
-    def execute(self, beatSensitivity=2.0):        
+    def execute(self, beatSensitivity=2.0):   
+        self._manage_playlist()
+    
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
         self.projectm_process = Popen(
             [app_path, '--beatSensitivity=' + str(beatSensitivity)],
@@ -155,7 +186,7 @@ def main():
     log.info('Executing ProjectMSDL and monitorring the presets for hangs...')
     pmw.execute()
     
-    while True:
+    while not sm.exit:
         try:
             if pmw.projectm_process.poll() != None:
                 log.warning('ProjectM has terminated!')

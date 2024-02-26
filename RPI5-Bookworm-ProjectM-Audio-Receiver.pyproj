@@ -27,11 +27,7 @@
   <ItemGroup>
     <Content Include="LICENSE" />
     <Content Include="projectMAR.sh" />
-    <Content Include="projectMSDL.sh" />
     <Content Include="README.md" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="backup\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
