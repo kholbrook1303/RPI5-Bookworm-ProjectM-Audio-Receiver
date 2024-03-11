@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>5172ee2d-b22b-43fb-a27f-6e07475914d2</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>projectmWrapper.py</StartupFile>
+    <StartupFile>projectMAR.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -22,11 +22,12 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="projectmWrapper.py" />
+    <Compile Include="presetManagement.py" />
+    <Compile Include="projectMAR.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="projectMAR.conf" />
     <Content Include="LICENSE" />
-    <Content Include="projectMAR.sh" />
     <Content Include="README.md" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
