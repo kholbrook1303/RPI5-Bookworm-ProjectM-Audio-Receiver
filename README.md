@@ -6,10 +6,6 @@ The ProjectM Audio Receiver concept will enable your Raspberry Pi to project vis
 ## But why?
 The background history behind this was to have visualizations on the television that reacted to a turntable that was playing in the same room.  Growing up I used to enjoy using Winamp with the Milkdrop visualizations build by Ryan Geiss.  These visualizations were proprietary on Windows but have since been ported to other OSs with the help of the ProjectM team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
 
-## Coming Soon...
-* Better handling/setup of devices used
-* User Interface:  Include an optional startup UI with a selection for the input/output devices the user would like to connect to allowing multiple devices to be connected simultaneously.
-
 ## Hardware Requirements:
 ```
 Raspberry Pi 5 with an SD card and power supply
@@ -189,27 +185,23 @@ git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver
 Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
 cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
-sudo chmod +x /opt/ProjectMSDL/projectMAR.sh
 ```
 
 ### Add Devices to ProjectM Audio Receiver startup script
 You will need to edit the bash script to include the device name(s) that you are connecting.
 
-Update /opt/ProjectMSDL/projectMAR.sh to include the devices for the following parameters:
+Update /opt/ProjectMSDL/projectMAR.conf to include the devices for the following parameters:
 ```
-# To see a list of devices run 'pactl list sources short'
-SOURCE_MIC_DEVICE="<Full Device Name>"          # This is only for mic.  If none set to null
-SOURCE_AUX_DEVICE="<Full Device Name>"          # This is only for aux.  If none set to null
-
-# Sink profile for audio output
-# To see a list of devices run 'pactl list sinks short'
-SINK_DEVICEs=("<Full Device Name>" "<Full Device Name>")
+mic_devices=
+aux_devices=
+bluetooth_devices=
+sink_devices=
 ```
 
 ### Test to ensure there are no issues
 Run the following to execute ProjectM Audio Receiver:
 ```
-/opt/ProjectMSDL/projectMAR.sh
+/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
 If all is well close the window
@@ -223,6 +215,6 @@ For Debian Bookworm they are now using Wayland so you will need to edit the ~/.c
 Edit the wayfire.ini file to include the startup entry:
 ```
 [autostart]
-par = /opt/ProjectMSDL/projectMAR.sh
+par = /bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
