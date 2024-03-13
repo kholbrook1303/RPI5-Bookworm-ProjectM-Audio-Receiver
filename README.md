@@ -11,7 +11,10 @@ The background history behind this was to have visualizations on the television 
 Raspberry Pi 5 with an SD card and power supply
 Case with cooling fan (I used the Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan)
 HDMI Cable
-USB Microphone (Can be a USB microphone or a USB 3.5mm audio input)
+Input device of your choosing.  The following are supported:
+ - USB Microphone
+ - USB to Line in
+ - Bluetooth (No harware is needed unless you dont use the built in bluetooth chip)
 ```
 
 ## Software Requirements:
@@ -176,6 +179,19 @@ xautomation is currently used to persist preset shuffling in projectmWrapper.py 
 sudo apt install xautomation
 ```
 
+### Set OpenGL version globally.
+First open the '/etc/environment' file to set environment variables
+```
+sudo nano /etc/environment
+```
+
+Add the following entry
+```
+MESA_GL_VERSION_OVERRIDE=4.5
+```
+
+Reboot
+
 ### Download the ProjectM Audio Receiver sources
 ```
 cd ~
@@ -190,8 +206,14 @@ cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
 ### Add Devices to ProjectM Audio Receiver startup script
 You will need to edit the bash script to include the device name(s) that you are connecting.
 
-Update /opt/ProjectMSDL/projectMAR.conf to include the devices for the following parameters:
+Update /opt/ProjectMSDL/projectMAR.conf to include the input devices:
 ```
+# Device Configurations:
+# Run 'pactl list sources short' to get the device names.  They must be connected!
+# mic_devices are any microphone devices conncted to the pi
+# aux_devices are any auxilary devices connected to the pi
+# bluetooth_devices are any bluetooth devices connected to the pi
+# sink_devices are any output devices connected to the pi
 mic_devices=
 aux_devices=
 bluetooth_devices=
@@ -204,7 +226,7 @@ Run the following to execute ProjectM Audio Receiver:
 /bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
-If all is well close the window
+If all is well close ProjectMSDL
 ```
 alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```

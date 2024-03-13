@@ -55,15 +55,6 @@ def log_init(name, level=logging.INFO, **kwargs):
     log.addHandler(hdlr)
     log.setLevel(level)
     
-class SignalMonitor:
-  exit = False
-  def __init__(self):
-    signal.signal(signal.SIGINT, self.set_exit)
-    signal.signal(signal.SIGTERM, self.set_exit)
-
-  def set_exit(self, signum, frame):
-    self.exit = True
-    
 class Config:
     def __init__(self, config_path, config_header=None):
         try:
@@ -116,9 +107,17 @@ class Config:
             return True
         except:
             return False
-
     
-class ProjectM(object):
+class SignalMonitor:
+    exit = False
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.set_exit)
+        signal.signal(signal.SIGTERM, self.set_exit)
+
+    def set_exit(self, signum, frame):
+        self.exit = True
+    
+class ProjectMAR(object):
     def __init__(self):
         pass
     
@@ -134,7 +133,7 @@ class ProjectM(object):
         for line in iter(process.stderr.readline, ""):
             yield line.strip()
     
-class SystemControl(ProjectM):
+class Control(ProjectMAR):
     def __init__(self):
         super().__init__()
         
@@ -147,13 +146,25 @@ class SystemControl(ProjectM):
         self.source_device = None
         self.source_device_type = None
         self.sink_device = None
+            
+    def _get_devices(self, device_type, device_regex):
+        devices = list()
         
-    def setup_display(self):
-        resolution = self.config.general['resolution']
-        
-        display_device = None
-        display_configs = list()
-        current_resolution = None
+        pactl = self._execute(['pactl', 'list', device_type, 'short'])
+        for line in self._read_stdout(pactl):
+            log.debug('pactl {} output: {}'.format(device_type, line))
+            match = re.search(device_regex, line, re.I)
+            if match:
+                devices.append(match.group('name'))
+                
+        return devices
+    
+    def _get_display_config(self, resolution):
+        display_config = {
+            'device': None,
+            'current_resolution': None,
+            'resolutions': list()
+            }
         
         display_device_regex = r'^(?P<device>HDMI.*?)\s'
         display_configs_regex = r'^(?P<resolution>' + resolution + ')\spx,\s(?P<refreshRate>\d+\.\d+)'
@@ -165,24 +176,33 @@ class SystemControl(ProjectM):
             
             match = re.search(display_device_regex, line, re.I)
             if match:
-                display_device = match.group('device')
+                display_config['device'] = match.group('device')
                 
             match = re.search(display_configs_regex, line, re.I)
             if match:
-                display_configs.append(match.group('resolution') + '@' + match.group('refreshRate') + 'Hz')
+                display_config['resolutions'].append(match.group('resolution') + '@' + match.group('refreshRate') + 'Hz')
             
             match = re.search(current_resolution_regex, line, re.I)
             if match:
                 log.debug(str(match.groupdict()))
-                current_resolution = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
+                display_config['current_resolution'] = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
                 
-        if current_resolution == max(display_configs):
-            log.debug('Resolution is already set to {}'.format(max(display_configs)))
-        else:
-            log.info('Setting resolution to {}'.format(max(display_configs)))
-            randr = self._execute(['wlr-randr', '--output', display_device, '--mode', max(display_configs)])
+        return display_config
         
-    def _kill_prior_instances(self):
+    def setup_display(self):
+        resolution = self.config.general['resolution']
+        display_config = self._get_display_config(resolution)
+                
+        if display_config['current_resolution'] == max(display_config['resolutions']):
+            log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
+        else:
+            log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
+            randr = self._execute([
+                'wlr-randr', '--output', display_config['device'], 
+                '--mode', max(display_config['resolutions'])
+                ])
+            
+    def kill_prior_instances(self):
         processes = [
             'projectMSDL'
             ]
@@ -194,35 +214,19 @@ class SystemControl(ProjectM):
                 self._execute(['sudo', 'killall',  process])
                 break
             
-    def _get_devices(self, device_type):
-        devices = list()
+    def unload_loopback_modules(self):
+        modules = self._get_devices('modules', r'^(?P<id>\d+)\s+module-loopback\s+source=(?P<source>.*?)\s')
         
-        regex = r'(?P<id>\d+)\s+(?P<name>.*?)\s+'
-        pactl = self._execute(['pactl', 'list', device_type, 'short'])
-        for line in self._read_stdout(pactl):
-            log.debug('pactl {} output: {}'.format(device_type, line))
-            match = re.search(regex, line, re.I)
-            if match:
-                devices.append(match.group('name'))
+        for module,moduleId in modules.items():
+            if module[1:-1] in self.config.general['bluetooth_devices']:
+                continue
                 
-        return devices  
-            
-    def unload_modules(self):
-        regex = r'^(?P<id>\d+)\s+module-loopback\s+source=(?P<source>.*?)\s'
-        pactl = self._execute(['pactl', 'list', 'modules', 'short'])
-        for line in self._read_stdout(pactl):
-            log.debug('pactl modules output: {}'.format(line))
-            match = re.search(regex, line, re.I)
-            if match:
-                if match.group('source')[1:-1] in self.config.general['bluetooth_devices']:
-                    continue
-                
-                log.info('Unloading module {} ({})'.format(match.group('source'), match.group('id')))
-                self._execute(['pactl', 'unload-module', match.group('id')])          
+            log.info('Unloading module {} ({})'.format(module, moduleId))
+            self._execute(['pactl', 'unload-module', moduleId])         
             
     def setup_devices(self):
-        sinks = self._get_devices('sinks')
-        sources = self._get_devices('sources')
+        sinks = self._get_devices('sinks', r'(?P<id>\d+)\s+(?P<name>.*?)\s+')
+        sources = self._get_devices('sources', r'(?P<id>\d+)\s+(?P<name>.*?)\s+')
         
         for sink in sinks:
             if sink in self.config.general['sink_devices'] and self.sink_device != sink:
@@ -247,7 +251,7 @@ class SystemControl(ProjectM):
                         
                     self.source_device_type = 'mic'
                     self.source_device = source
-                    self.unload_modules()
+                    self.unload_loopback_modules()
                 
                     self._execute(['pactl', 'set-default-source', source])
                     self._execute(['amixer', 'sset', 'Capture', '100%'])
@@ -280,7 +284,7 @@ class SystemControl(ProjectM):
                     log.info('Identified a new bluetooth source:{}'.format(source))
                     self.source_device_type = 'bluetooth'
                     self.source_device = source
-                    self.unload_modules()
+                    self.unload_loopback_modules()
                 
                     self._execute(['amixer', 'sset', 'Capture', '100%'])
                 
@@ -296,7 +300,7 @@ class SystemControl(ProjectM):
             time.sleep(5)
         
     def start(self):
-        self._kill_prior_instances()
+        self.kill_prior_instances()
 
         self.thread = Thread(
             target=self.control,
@@ -309,7 +313,7 @@ class SystemControl(ProjectM):
         self.thread_event.set()
         self.thread.join()
 
-class Wrapper(ProjectM):
+class Wrapper(ProjectMAR):
     def __init__(self):
         super().__init__()
         
@@ -420,7 +424,7 @@ def main():
     sm = SignalMonitor()
     
     log.info('Initializing projectMAR System Control...')
-    pmc = SystemControl()
+    pmc = Control()
     pmc.start()
     
     log.info('Initializing projectMAR Wrapper...')
@@ -445,8 +449,8 @@ def main():
     pmw.thread_event.set()
     pmw.stop()
     pmc.stop()
+    
     sys.exit(0)
-        
 
 if __name__ == "__main__":
     main()
