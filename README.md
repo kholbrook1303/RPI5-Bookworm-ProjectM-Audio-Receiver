@@ -1,7 +1,7 @@
-# Raspberry Pi 5 - ProjectM Audio Receiver (Visualizations Projector)
+# Raspberry Pi 5 - ProjectM Audio Receiver
 
 ## What is this?
-The ProjectM Audio Receiver concept will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by either a microphone input (capturing surrounding audio) or an auxiliary input (capturing audio through 3.5mm audio cable).  
+The ProjectM Audio Receiver concept will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
 
 ## But why?
 The background history behind this was to have visualizations on the television that reacted to a turntable that was playing in the same room.  Growing up I used to enjoy using Winamp with the Milkdrop visualizations build by Ryan Geiss.  These visualizations were proprietary on Windows but have since been ported to other OSs with the help of the ProjectM team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
@@ -11,7 +11,10 @@ The background history behind this was to have visualizations on the television 
 Raspberry Pi 5 with an SD card and power supply
 Case with cooling fan (I used the Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan)
 HDMI Cable
-USB Microphone (Can be a USB microphone or a USB 3.5mm audio input)
+Input device of your choosing.  The following are supported:
+ - USB Microphone
+ - USB to Line in
+ - Bluetooth (No harware is needed unless you dont use the built in bluetooth chip)
 ```
 
 ## Software Requirements:
@@ -164,6 +167,7 @@ PartOf=bluetooth.service
 [Service]
 Type=simple
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+KillSignal=SIGUSR1
 
 [Install]
 WantedBy=bluetooth.target
@@ -176,6 +180,19 @@ xautomation is currently used to persist preset shuffling in projectmWrapper.py 
 sudo apt install xautomation
 ```
 
+### Set OpenGL version globally.
+First open the '/etc/environment' file to set environment variables
+```
+sudo nano /etc/environment
+```
+
+Add the following entry
+```
+MESA_GL_VERSION_OVERRIDE=4.5
+```
+
+Reboot
+
 ### Download the ProjectM Audio Receiver sources
 ```
 cd ~
@@ -184,14 +201,32 @@ git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver
 
 Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
+mkdir /opt/ProjectMSDL/
 cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
+```
+
+### Setup python venv
+```
+cd /opt/ProjectMSDL/
+python3 -m venv env
+```
+
+### Install all Python dependencies
+```
+/opt/ProjectMSDL/env/bin/python3 -m pip install -r requirements.txt
 ```
 
 ### Add Devices to ProjectM Audio Receiver startup script
 You will need to edit the bash script to include the device name(s) that you are connecting.
 
-Update /opt/ProjectMSDL/projectMAR.conf to include the devices for the following parameters:
+Update /opt/ProjectMSDL/projectMAR.conf to include the input devices:
 ```
+# Device Configurations:
+# Run 'pactl list sources short' to get the device names.  They must be connected!
+# mic_devices are any microphone devices conncted to the pi
+# aux_devices are any auxilary devices connected to the pi
+# bluetooth_devices are any bluetooth devices connected to the pi
+# sink_devices are any output devices connected to the pi
 mic_devices=
 aux_devices=
 bluetooth_devices=
@@ -201,10 +236,10 @@ sink_devices=
 ### Test to ensure there are no issues
 Run the following to execute ProjectM Audio Receiver:
 ```
-/bin/python3 /opt/ProjectMSDL/projectMAR.py
+/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
-If all is well close the window
+If all is well close ProjectMSDL
 ```
 alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```
@@ -215,6 +250,6 @@ For Debian Bookworm they are now using Wayland so you will need to edit the ~/.c
 Edit the wayfire.ini file to include the startup entry:
 ```
 [autostart]
-par = /bin/python3 /opt/ProjectMSDL/projectMAR.py
+par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
