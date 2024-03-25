@@ -1,7 +1,7 @@
-# Raspberry Pi 5 - ProjectM Audio Receiver (Visualizations Projector)
+# Raspberry Pi 5 - ProjectM Audio Receiver
 
 ## What is this?
-The ProjectM Audio Receiver concept will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by either a microphone input (capturing surrounding audio) or an auxiliary input (capturing audio through 3.5mm audio cable).  
+The ProjectM Audio Receiver concept will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
 
 ## But why?
 The background history behind this was to have visualizations on the television that reacted to a turntable that was playing in the same room.  Growing up I used to enjoy using Winamp with the Milkdrop visualizations build by Ryan Geiss.  These visualizations were proprietary on Windows but have since been ported to other OSs with the help of the ProjectM team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
@@ -167,6 +167,7 @@ PartOf=bluetooth.service
 [Service]
 Type=simple
 ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+KillSignal=SIGUSR1
 
 [Install]
 WantedBy=bluetooth.target
@@ -200,7 +201,19 @@ git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver
 
 Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
+mkdir /opt/ProjectMSDL/
 cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
+```
+
+### Setup python venv
+```
+cd /opt/ProjectMSDL/
+python3 -m venv env
+```
+
+### Install all Python dependencies
+```
+/opt/ProjectMSDL/env/bin/python3 -m pip install -r requirements.txt
 ```
 
 ### Add Devices to ProjectM Audio Receiver startup script
@@ -223,7 +236,7 @@ sink_devices=
 ### Test to ensure there are no issues
 Run the following to execute ProjectM Audio Receiver:
 ```
-/bin/python3 /opt/ProjectMSDL/projectMAR.py
+/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
 If all is well close ProjectMSDL
@@ -237,6 +250,6 @@ For Debian Bookworm they are now using Wayland so you will need to edit the ~/.c
 Edit the wayfire.ini file to include the startup entry:
 ```
 [autostart]
-par = /bin/python3 /opt/ProjectMSDL/projectMAR.py
+par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
