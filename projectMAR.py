@@ -120,9 +120,7 @@ class SignalMonitor:
     
 class ProjectMAR(object):
     def __init__(self):        
-        self.source_device = None
-        self.source_device_type = None
-        self.sink_device = None
+        pass
     
     """Execute a process.
     @param args: an array of arguments including the executable
@@ -183,6 +181,10 @@ class Control(ProjectMAR):
         self.sinks = dict()
         self.sources = dict()
         self.modules = dict()
+        
+        self.source_device = None
+        self.source_device_type = None
+        self.sink_device = None
         
         self.pa = Pulse('ProjectMAR')
         self.ar_mode = self.config.general['ar_mode']
@@ -432,10 +434,11 @@ class Control(ProjectMAR):
         self.pa.close()
 
 class Wrapper(ProjectMAR):
-    def __init__(self, config):
+    def __init__(self, config, control):
         super().__init__()
         
         self.config = config
+        self.control = control
         
         self.projectm_path = self.config.projectm['path']
         self.projectm_process = None
@@ -475,16 +478,19 @@ class Wrapper(ProjectMAR):
         for line in self._read_stderr(self.projectm_process):
             log.debug('ProjectM Output: {0}'.format(line))
             
-            match = re.match(preset_regex, line, re.I)
-            if match:
-                preset = match.group('name').rsplit('/', 1)[1]
+            try:
+                match = re.match(preset_regex, line, re.I)
+                if match:
+                    preset = match.group('name').rsplit('/', 1)[1]
                 
-                log.info('Currently displaying preset: {0}'.format(preset))
-                self.preset_start = time.time()
+                    log.info('Currently displaying preset: {0}'.format(preset))
+                    self.preset_start = time.time()
                 
-                # Take a preview screenshot
-                if self.config.general['projectm']['screenshots_enabled'] and self.source_device:
-                    self._take_screenshot()
+                    # Take a preview screenshot
+                    if self.config.projectm['screenshots_enabled'] and self.control.source_device:
+                        self._take_screenshot(preset)
+            except:
+                log.exception('Failed to process output')
             
     def _monitor_hang(self):
         while not self.thread_event.is_set():
@@ -579,7 +585,7 @@ def main():
     pmc.start()
     
     log.info('Initializing projectMSDL Wrapper...')
-    pmw = Wrapper(config)
+    pmw = Wrapper(config, pmc)
     
     log.info('Executing ProjectMSDL and monitorring presets for hangs...')
     pmw.execute()
