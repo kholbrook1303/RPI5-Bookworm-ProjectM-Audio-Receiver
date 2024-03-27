@@ -216,20 +216,25 @@ python3 -m venv env
 /opt/ProjectMSDL/env/bin/python3 -m pip install -r requirements.txt
 ```
 
-### Add Devices to ProjectM Audio Receiver startup script
-You will need to edit the bash script to include the device name(s) that you are connecting.
-
-Update /opt/ProjectMSDL/projectMAR.conf to include the input devices:
+### Setup the ProjectM Audio Receiver configuration
+Select the audio receiver mode.  Automatic will handle connected devices without any user configuration
+Manual will allow you to be more granular with your devices
 ```
-# Device Configurations:
-# Run 'pactl list sources short' to get the device names.  They must be connected!
-# mic_devices are any microphone devices conncted to the pi
-# aux_devices are any auxilary devices connected to the pi
-# bluetooth_devices are any bluetooth devices connected to the pi
-# sink_devices are any output devices connected to the pi
+ar_mode=manual
+```
+
+if using automatic mode, ensure you have specified the appropriate audio mode.
+if you want the input audio routed to the output device, select aux, otherwise to only listen to environmental sound use mic mode.
+An example of mic mode would be a receiver playing a phono input while playing video from the pi
+```
+audio_mode=aux
+```
+
+If using manual mode, update /opt/ProjectMSDL/projectMAR.conf to include the input/output devices.
+To get the devices, connect them and run 'pactl list sources/sinks short' and take note of the device name
+```
 mic_devices=
 aux_devices=
-bluetooth_devices=
 sink_devices=
 ```
 
