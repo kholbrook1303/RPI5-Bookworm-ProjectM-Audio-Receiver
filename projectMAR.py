@@ -177,44 +177,26 @@ class Control(ProjectMAR):
         
         self.config = config
         
+        self.thread = None
+        self.thread_event = Event()
+        
         self.sinks = dict()
         self.sources = dict()
         self.modules = dict()
         
-        self.thread = None
-        self.thread_event = Event()
-        
         self.pa = Pulse('ProjectMAR')
-            
-    
-    """Updates the current source/sink/modules"""
-    def update_devices(self):
-        try:
-            self.sinks.clear()
-            for sink in self.pa.sink_list():
-                self.sinks[sink.name] = sink
-            
-            self.sources.clear()
-            for source in self.pa.source_list():
-                self.sources[source.name] = source
-            
-            self.modules.clear()
-            for module in self.pa.module_list():
-                self.modules[module.name] = {
-                    'module': module
-                    }
-            
-                m_args = dict()
-                try:
-                    for key,val in re.findall(r'([^\s=]*)=(.*?)(?:\s|$)', module.argument):
-                        m_args[key] = val
-                    
-                except TypeError:
-                    pass
-            
-                self.modules[module.name]['argument'] = m_args
-        except Exception as e:
-            log.error('Failed to update PulseAudio devices')
+        self.ar_mode = self.config.general['ar_mode']
+        self.supported_sources = [
+            'alsa_input',
+            'bluez_source'
+            ]
+        self.supported_sinks = [
+            'alsa_output'
+            ]
+        self.source_blacklist = [
+            'hdmi.hdmi-stereo.monitor',
+            'alsa_output'
+            ]            
     
     def _get_display_config(self, resolution):
         display_config = {
@@ -246,6 +228,59 @@ class Control(ProjectMAR):
                 display_config['current_resolution'] = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
                 
         return display_config
+                
+    def _control_device(self, source_name, source_channels, device, device_type):
+        log.info('Identified a new source device: {0} ({1})'.format(
+            source_name,device.description
+            ))
+                    
+        if self.source_device and self.source_device.startswith('bluez_source'):
+            log.info('Disconnecting bluetooth device: {}'.format(self.source_device))
+            self._execute_managed(['bluetoothctl', 'disconnect'])
+                        
+        self.source_device_type = device_type
+        self.source_device = source_name
+                
+        self.pa.default_set(device)
+        source_volume = PulseVolumeInfo(1, source_channels)
+        self.pa.source_volume_set(device.index, source_volume)
+        
+        if device_type == 'aux' and not source_name.startswith('bluez_source'):
+            self.unload_loopback_modules()
+            self.pa.module_load('module-loopback', [
+                'source=' + source_name, 
+                'sink=' + self.sink_device,
+                'latency_msec=20'
+                ])
+    
+    """Updates the current source/sink/modules"""
+    def update_devices(self):
+        try:
+            self.sinks.clear()
+            for sink in self.pa.sink_list():
+                self.sinks[sink.name] = sink
+            
+            self.sources.clear()
+            for source in self.pa.source_list():
+                self.sources[source.name] = source
+            
+            self.modules.clear()
+            for module in self.pa.module_list():
+                self.modules[module.name] = {
+                    'module': module
+                    }
+            
+                m_args = dict()
+                try:
+                    for key,val in re.findall(r'([^\s=]*)=(.*?)(?:\s|$)', module.argument):
+                        m_args[key] = val
+                    
+                except TypeError:
+                    pass
+            
+                self.modules[module.name]['argument'] = m_args
+        except Exception as e:
+            log.error('Failed to update PulseAudio devices')
         
     def enforce_resolution(self):
         resolution = self.config.general['resolution']
@@ -277,10 +312,10 @@ class Control(ProjectMAR):
             if module.name == 'module-loopback':
                 try:
                     m_args = dict()
-                    for key,val in re.findall(r'([^\s=]*)=\"(.*?)\"', module.argument):
+                    for key,val in re.findall(r'([^\s=]*)=(?:\"|)(.*?)(?:\"|\s)', module.argument):
                         m_args[key] = val
                         
-                    if m_args['source'] in self.config.general['bluetooth_devices']:
+                    if m_args['source'].startswith('bluez_source'):
                         continue
                     
                     log.info('Unloading module {} ({})'.format(m_args['source'], module.index))
@@ -302,74 +337,71 @@ class Control(ProjectMAR):
                 self.unload_loopback_modules()
                 self.source_device_type = None
         
+        # Check for new sink devices
         for sink in self.sinks:
-            if sink in self.config.general['sink_devices'] and self.sink_device != sink:
-                log.info('Identified a new sink device: {}'.format(sink))
-                self.sink_device = sink
+            if self.ar_mode == 'automatic':
+                if any(sink.startswith(dev) for dev in self.supported_sinks):
+                    log.info('Identified a new sink device: {}'.format(sink))
+                    self.sink_device = sink
+                    break
+                    
+            elif self.ar_mode == 'manual':
+                if sink in self.config.manual['sink_devices'] and self.sink_device != sink:
+                    log.info('Identified a new sink device: {}'.format(sink))
+                    self.sink_device = sink
+                    
+            else:
+                raise Exception('The specified mode \'{0}\' is invalid!'.format(self.ar_mode))
+            
                 
         if not self.sink_device:
             log.warning("No sink devices were found!")
         
-        found_devices = 0
-        connected_devices = 0
-        for source, device in self.sources.items():
+        devices_found = 0
+        devices_connected = 0
+        for source_name, device in self.sources.items():
             source_channels = len(device.volume.values)
             source_volume = device.volume.values
             
-            if source in self.config.general['mic_devices']:
-                found_devices += 1
-                if self.source_device != source and connected_devices == 0:
-                    connected_devices += 1
-                    log.info('Identified a new mic source device: {}'.format(source))
-                    
-                    if self.source_device in self.config.general['bluetooth_devices']:
-                        log.info('Disconnecting bluetooth device: {}'.format(self.source_device))
-                        self._execute_managed(['bluetoothctl', 'disconnect'])
+            if self.ar_mode == 'automatic':
+                if not any(src in source_name for src in self.supported_sources):
+                    continue
+            
+                devices_found += 1
+            
+                source_channels = len(device.volume.values)
+                source_volume = device.volume.values
+            
+                if self.source_device != source_name and devices_connected == 0:
+                    self._control_device(source_name, source_channels, device, self.config.automatic['audio_mode'])
+                    devices_connected += 1
+                    break
+                
+            elif self.ar_mode == 'manual':
+                if source_name in self.config.manual['mic_devices']:
+                    devices_found += 1
+                    if self.source_device != source_name and devices_connected == 0:
+                        self._control_device(source_name, source_channels, device, 'mic')
+                        devices_connected += 1
                         
-                    self.source_device_type = 'mic'
-                    self.source_device = source
-                
-                    self.pa.default_set(device)
-                    source_volume = PulseVolumeInfo(1, source_channels)
-                    self.pa.source_volume_set(device.index, source_volume)
-
-            elif source in self.config.general['aux_devices']:
-                found_devices += 1
-                if self.source_device != source and connected_devices == 0:
-                    connected_devices += 1
-                    log.info('Identified a new aux source device: {}'.format(source))
-                    
-                    self.unload_loopback_modules()
-                    
-                    if self.source_device in self.config.general['bluetooth_devices']:
-                        log.info('Disconnecting bluetooth device: {}'.format(self.source_device))
-                        self._execute_managed(['bluetoothctl', 'disconnect'])
-
-                    self.source_device_type = 'aux'
-                    self.source_device = source
-                
-                    self.pa.default_set(device)
-                    source_volume = PulseVolumeInfo(.75, source_channels)
-                    self.pa.source_volume_set(device.index, source_volume)
-                    self.pa.module_load('module-loopback', [
-                        'source=' + source, 
-                        'sink=' + self.sink_device,
-                        'latency_msec=20'
-                        ])
-                    
-            elif source in self.config.general['bluetooth_devices']:
-                found_devices += 1
-                if self.source_device != source and connected_devices == 0:
-                    connected_devices += 1
-                    log.info('Identified a new bluetooth source:{}'.format(source))
-                    self.source_device_type = 'bluetooth'
-                    self.source_device = source
-                    
-                    source_volume = PulseVolumeInfo(1, source_channels)
-                    self.pa.source_volume_set(device.index, source_volume)
-                
-        if found_devices == 0:
-            log.debug("No mic/aux/bluetooth devices detected")
+                elif source_name.startswith('bluez_source'):
+                    devices_found += 1
+                    if self.source_device != source_name and devices_connected == 0:
+                        self._control_device(source_name, source_channels, device, 'aux')
+                        devices_connected += 1
+                        
+                elif source_name in self.config.manual['aux_devices']:
+                    devices_found += 1
+                    if self.source_device != source_name and devices_connected == 0:
+                        self._control_device(source_name, source_channels, device, 'aux')
+                        devices_connected += 1
+                        
+            else:
+                raise Exception('The specified mode \'{0}\' is invalid!'.format(self.ar_mode))
+            
+        
+        if devices_found == 0:
+            log.debug("No mic/aux devices detected")
             self.source_device = None
             self.source_device_type = None
         
@@ -403,24 +435,40 @@ class Wrapper(ProjectMAR):
     def __init__(self, config):
         super().__init__()
         
-        config_path = os.path.join(APP_ROOT, 'projectMSDL.properties')
-        self.projectmsdl_config = Config(config_path, config_header='[projectm]')
         self.config = config
+        
+        self.projectm_path = self.config.projectm['path']
+        self.projectm_process = None
+        
+        config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
+        self.projectm_config = Config(config_path, config_header='[projectm]')
         
         self.threads = list()
         self.thread_event = Event()
         
-        self.projectm_process = None
         self.preset_start = 0
-        self.preset_shuffle = self.projectmsdl_config.projectm['projectm.shuffleenabled']
-        self.preset_display_duration = self.projectmsdl_config.projectm['projectm.displayduration']
-        self.preset_path = self.projectmsdl_config.projectm['projectm.presetpath'].replace(
-            '${application.dir}', APP_ROOT
+        self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
+        self.preset_display_duration = self.projectm_config.projectm['projectm.displayduration']
+        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace(
+            '${application.dir}', self.projectm_path
             )
         self.preset_screenshot_index = 0
-        self.preset_screenshot_path = os.path.join(APP_ROOT, 'preset_screenshots')
+        self.preset_screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
         if not os.path.exists(self.preset_screenshot_path):
             os.makedirs(self.preset_screenshot_path)
+            
+    def _take_screenshot(self, preset):
+        preset_name = os.path.splitext(preset)[0]
+        preset_name_filtered = preset_name.split(' ', 1)[1]
+        preset_screenshot_name = preset_name_filtered + '.png'
+        if not preset_screenshot_name in os.listdir(self.preset_screenshot_path):
+            if self.preset_screenshot_index > 0:
+                time.sleep(self.projectm_config.projectm['projectm.transitionduration'])
+                log.info('Taking a screenshot of {0}'.format(preset))
+                screenshot_path = os.path.join(self.preset_screenshot_path, preset_screenshot_name)
+                self._execute_managed(['grim', screenshot_path])
+                            
+            self.preset_screenshot_index += 1
                     
     def _monitor_output(self):
         preset_regex = r'^INFO: Displaying preset: (?P<name>.*)$'
@@ -430,23 +478,13 @@ class Wrapper(ProjectMAR):
             match = re.match(preset_regex, line, re.I)
             if match:
                 preset = match.group('name').rsplit('/', 1)[1]
-                preset_name = os.path.splitext(preset)[0]
-                preset_name_filtered = preset_name.split(' ', 1)[1]
                 
-                log.info('Currently displaying preset: {0}'.format(preset_name_filtered))
+                log.info('Currently displaying preset: {0}'.format(preset))
                 self.preset_start = time.time()
                 
-                # # Take a preview screenshot
-                if self.config.general['screenshots_enabled'] and self.source_device:
-                    preset_screenshot_name = preset_name_filtered + '.png'
-                    if not preset_screenshot_name in os.listdir(self.preset_screenshot_path):
-                        if self.preset_screenshot_index > 0:
-                            time.sleep(self.projectmsdl_config.projectm['projectm.transitionduration'])
-                            log.info('Taking a screenshot of {0}'.format(preset))
-                            screenshot_path = os.path.join(self.preset_screenshot_path, preset_screenshot_name)
-                            self._execute_managed(['grim', screenshot_path])
-                            
-                        self.preset_screenshot_index += 1
+                # Take a preview screenshot
+                if self.config.general['projectm']['screenshots_enabled'] and self.source_device:
+                    self._take_screenshot()
             
     def _monitor_hang(self):
         while not self.thread_event.is_set():
@@ -463,7 +501,7 @@ class Wrapper(ProjectMAR):
             time.sleep(1)
             
     def _manage_playlist(self):
-        if self.config.general['advanced_shuffle'] == True:
+        if self.config.projectm['advanced_shuffle'] == True:
             log.info('Performing smart randomization on presets!')
             presets = list()
             for root, dirs, files in os.walk(self.preset_path):
@@ -534,7 +572,9 @@ def main():
     
     sm = SignalMonitor()
     
-    log.info('Initializing projectMAR System Control...')
+    log.info('Initializing projectMAR System Control in {0} mode...'.format(
+        config.general['ar_mode']
+        ))
     pmc = Control(config)
     pmc.start()
     
