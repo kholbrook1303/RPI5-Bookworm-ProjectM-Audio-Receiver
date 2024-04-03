@@ -1,6 +1,4 @@
-import json
 import logging
-import logging.handlers
 import os
 import random
 import re
@@ -8,106 +6,14 @@ import signal
 import sys
 import time
 
-from configparser import ConfigParser, RawConfigParser
-from datetime import datetime
 from pulsectl import Pulse, PulseVolumeInfo
 from subprocess import Popen, PIPE
 from threading import Thread, Event
 
-loggers = {}
+from lib.config import Config, APP_ROOT
+from lib.log import log_init
+
 log = logging.getLogger()
-
-APP_ROOT = os.path.dirname(
-    os.path.abspath(__file__)
-    )
-
-class JsonFormatter(logging.Formatter):
-    def formatException(self, exc_info):
-        result = super(JsonFormatter, self).formatException(exc_info)
-        json_result = {
-        "timestamp": f"{datetime.now()}",
-        "level": "ERROR",
-        "Module": "projectMAR",
-        "message": f"{result}",
-        }
-        return json.dumps(json_result)
-
-def log_init(name, level=logging.DEBUG, **kwargs):
-    json_formatter = JsonFormatter(
-        '{"timestamp":"%(asctime)s", "level":"%(levelname)s", "Module":"%(module)s", "message":"%(message)s"}'
-        )
-
-    if name.endswith('.log'):
-        hdlr = logging.handlers.TimedRotatingFileHandler(
-            name,
-            when=kwargs.get('frequency', 'midnight'),
-            interval=kwargs.get('interval', 1),
-            backupCount=kwargs.get('backups', 5)
-            )
-        hdlr.setFormatter(json_formatter)
-        hdlr.setLevel(level)
-
-    if name == "console":
-        hdlr = logging.StreamHandler()
-        hdlr.setFormatter(json_formatter)
-        hdlr.setLevel(level)
-       
-    loggers[name] = hdlr
-    log.addHandler(hdlr)
-    log.setLevel(level)
-    
-class Config:
-    def __init__(self, config_path, config_header=None):
-        try:
-            if config_header:
-                config = RawConfigParser(allow_no_value=True)
-                with open(config_path) as config_file:
-                    data = config_file.read()
-                    config.read_string(config_header + '\n' + data)
-                    
-            else:
-                config = ConfigParser(allow_no_value=True)
-                config.read(config_path)
-
-            for section in config.sections():
-                setattr(self, section, dict())
-
-                for name, str_value in config.items(section):
-                    if name.endswith("_devices"):
-                        value = config.get(section, name).split(",")
-                    elif self._is_str_bool(str_value):
-                        value = config.getboolean(section, name)
-                    elif self._is_str_int(str_value):
-                        value = config.getint(section, name)
-                    else:
-                        value = config.get(section, name)
-
-                    getattr(self, section)[name] = value
-
-        except:
-            log.error("Error loading configuration file")
-            sys.exit()
-        
-    def _is_str_bool(self, value):
-        """Check if string is an integer.
-        @param value: object to be verified.
-        """
-        if value.lower() == 'true':
-            return True
-        elif value.lower() == 'false':
-            return True
-
-        return False
-
-    def _is_str_int(self, value):
-        """Check if string is an integer.
-        @param value: object to be verified.
-        """
-        try:
-            int(value)
-            return True
-        except:
-            return False
     
 class SignalMonitor:
     exit = False
@@ -188,6 +94,7 @@ class Control(ProjectMAR):
         
         self.pa = Pulse('ProjectMAR')
         self.ar_mode = self.config.general['ar_mode']
+        
         self.supported_sources = [
             'alsa_input',
             'bluez_source'
@@ -195,10 +102,6 @@ class Control(ProjectMAR):
         self.supported_sinks = [
             'alsa_output'
             ]
-        self.source_blacklist = [
-            'hdmi.hdmi-stereo.monitor',
-            'alsa_output'
-            ]            
     
     def _get_display_config(self, resolution):
         display_config = {
@@ -230,21 +133,29 @@ class Control(ProjectMAR):
                 display_config['current_resolution'] = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
                 
         return display_config
+    
+    def _control_sink_device(self, sink_name, sink_channels, device, volume=1):
+        log.info('Identified a new sink device: {}'.format(sink_name))
+        self.sink_device = sink_name
+                    
+        sink_volume = PulseVolumeInfo(volume, sink_channels)
+        self.pa.sink_volume_set(device.index, sink_volume)
                 
-    def _control_device(self, source_name, source_channels, device, device_type):
+    def _control_source_device(self, source_name, source_channels, device, device_type, volume=1):
         log.info('Identified a new source device: {0} ({1})'.format(
             source_name,device.description
             ))
                     
         if self.source_device and self.source_device.startswith('bluez_source'):
             log.info('Disconnecting bluetooth device: {}'.format(self.source_device))
-            self._execute_managed(['bluetoothctl', 'disconnect'])
-                        
+            device_mac = self.source_device.split('.')[1].replace('_', ':')
+            self._execute_managed(['bluetoothctl', 'disconnect', device_mac])
+
         self.source_device_type = device_type
         self.source_device = source_name
                 
         self.pa.default_set(device)
-        source_volume = PulseVolumeInfo(1, source_channels)
+        source_volume = PulseVolumeInfo(volume, source_channels)
         self.pa.source_volume_set(device.index, source_volume)
         
         if device_type == 'aux' and not source_name.startswith('bluez_source'):
@@ -287,8 +198,10 @@ class Control(ProjectMAR):
     def enforce_resolution(self):
         resolution = self.config.general['resolution']
         display_config = self._get_display_config(resolution)
-                
-        if display_config['current_resolution'] == max(display_config['resolutions']):
+          
+        if len(display_config['resolutions']) == 0:
+            log.warning('There is currently no display connected: {}'.format(display_config))  
+        elif display_config['current_resolution'] == max(display_config['resolutions']):
             log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
         else:
             log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
@@ -340,17 +253,16 @@ class Control(ProjectMAR):
                 self.source_device_type = None
         
         # Check for new sink devices
-        for sink in self.sinks:
+        for sink_name, device in self.sinks.items():
+            sink_channels = len(device.volume.values)
             if self.ar_mode == 'automatic':
-                if any(sink.startswith(dev) for dev in self.supported_sinks):
-                    log.info('Identified a new sink device: {}'.format(sink))
-                    self.sink_device = sink
+                if any(sink_name.startswith(dev) for dev in self.supported_sinks) and self.sink_device != sink_name:
+                    self._control_sink_device(sink_name, sink_channels, device)
                     break
                     
             elif self.ar_mode == 'manual':
-                if sink in self.config.manual['sink_devices'] and self.sink_device != sink:
-                    log.info('Identified a new sink device: {}'.format(sink))
-                    self.sink_device = sink
+                if sink_name in self.config.manual['sink_devices'] and self.sink_device != sink_name:
+                    self._control_sink_device(sink_name, sink_channels, device)
                     
             else:
                 raise Exception('The specified mode \'{0}\' is invalid!'.format(self.ar_mode))
@@ -375,7 +287,7 @@ class Control(ProjectMAR):
                 source_volume = device.volume.values
             
                 if self.source_device != source_name and devices_connected == 0:
-                    self._control_device(source_name, source_channels, device, self.config.automatic['audio_mode'])
+                    self._control_source_device(source_name, source_channels, device, self.config.automatic['audio_mode'])
                     devices_connected += 1
                     break
                 
@@ -383,19 +295,19 @@ class Control(ProjectMAR):
                 if source_name in self.config.manual['mic_devices']:
                     devices_found += 1
                     if self.source_device != source_name and devices_connected == 0:
-                        self._control_device(source_name, source_channels, device, 'mic')
+                        self._control_source_device(source_name, source_channels, device, 'mic', volume=.75)
                         devices_connected += 1
                         
                 elif source_name.startswith('bluez_source'):
                     devices_found += 1
                     if self.source_device != source_name and devices_connected == 0:
-                        self._control_device(source_name, source_channels, device, 'aux')
+                        self._control_source_device(source_name, source_channels, device, 'aux')
                         devices_connected += 1
                         
                 elif source_name in self.config.manual['aux_devices']:
                     devices_found += 1
                     if self.source_device != source_name and devices_connected == 0:
-                        self._control_device(source_name, source_channels, device, 'aux')
+                        self._control_source_device(source_name, source_channels, device, 'aux', volume=.75)
                         devices_connected += 1
                         
             else:
@@ -570,6 +482,7 @@ class Wrapper(ProjectMAR):
 
 def main():
     config_path = os.path.join(APP_ROOT, 'projectMAR.conf')
+    print (config_path)
     config = Config(config_path)
     
     logpath = os.path.join(APP_ROOT, 'projectMAR.log')
@@ -599,8 +512,9 @@ def main():
             time.sleep(1)
         except KeyboardInterrupt:
             log.warning('User initiated keyboard exit')
+            break
         except:
-            log.exception('projectmWrapper failed!')
+            log.exception('projectMAR failed!')
             
     log.info('Closing down all threads/processes...')
     pmw.thread_event.set()
