@@ -1,28 +1,42 @@
 # Raspberry Pi 5 - ProjectM Audio Receiver
 
+![ProjectMAR Device](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/device.png)
+
 ## What is this?
-The ProjectM Audio Receiver concept will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
+The ProjectM Audio Receiver will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
 
 ## But why?
-The background history behind this was to have visualizations on the television that reacted to a turntable that was playing in the same room.  Growing up I used to enjoy using Winamp with the Milkdrop visualizations build by Ryan Geiss.  These visualizations were proprietary on Windows but have since been ported to other OSs with the help of the ProjectM team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
+Growing up I used to enjoy using Winamp with the Milkdrop visualizations built by Ryan Geiss.  These visualizations were proprietary on Windows (DirectX), but have since been ported to other operating systems with the help of the [ProjectM](https://github.com/projectM-visualizer/projectm/tree/master) team.  Since the release of the Raspberry Pi 5, there is now adequate processing power to run allot of these visualizations.
+
+Originally the intention was to add a video signal to the Phono input of my Marantz receiver that would react to the rooms surrounding audio.  As it progressed, I figure why not also control the sources/sinks of the Raspberry pi to support various audio input devices (Line in, Mic, Bluetooth, etc...).
+
+## Previews of the device in action
+![ProjectMAR Preview 1](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview1.png)
+![ProjectMAR Preview 2](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview2.png)
+![ProjectMAR Preview 3](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview3.png)
+![ProjectMAR Preview 4](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview4.png)
 
 ## Hardware Requirements:
-```
-Raspberry Pi 5 with an SD card and power supply
-Case with cooling fan (I used the Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan)
-HDMI Cable
-Input device of your choosing.  The following are supported:
- - USB Microphone
- - USB to Line in
- - Bluetooth (No harware is needed unless you dont use the built in bluetooth chip)
-```
+
+- Raspberry Pi 5 - 8GB
+- 5v/5A USB-C Power Supply
+- SanDisk 32GB Extreme PRO® microSD
+- Case with active cooling (The following are my recommendations in order of preference)
+    - Argon ONE V3 Case for Raspberry Pi 5 w/ Argon BLSTR DAC with Ground Loop Isolator (This is going to get costly and is not necessary for basic audio)
+    - Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan
+- HDMI Cable with Micro HDMI adapter or Micro HDMI to HDMI cable
+- Input device of your choosing (You can always use built in Bluetooth; just know there is potential for interference with built in card)
+    - USB Microphone
+    - USB Line in/Aux
 
 ## Software Requirements:
 ```
-Raspberry Pi OS Bookworm or Ubuntu Desktop for Raspberry Pi 23.10
+Raspberry Pi OS Bookworm
 ```
 
 ## Initial Setup
+This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+
 Make sure the OS is up-to-date
 ```
 sudo apt update
@@ -257,4 +271,3 @@ Edit the wayfire.ini file to include the startup entry:
 [autostart]
 par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
-
