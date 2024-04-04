@@ -120,7 +120,7 @@ sudo chmod 777 -R /opt/ProjectMSDL
 cp -r ~/frontend-sdl2/build/src/* /opt/ProjectMSDL/
 ```
 
-Adjust projectMSDL.properties to suit the Raspberry Pi.  Change the following configuratios to the below:
+Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configuratios to the below:
 ```
 window.fullscreen = true
 projectM.meshX = 64
@@ -193,8 +193,10 @@ WantedBy=bluetooth.target
 ## Setup ProjectM Audio Receiver
 ### Install dependencies
 xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang
+
+Additionally PulseAudio may need to be installed (Currently audio control is managed to PulseAudio.  There are future plans make this optional)
 ```
-sudo apt install xautomation
+sudo apt install xautomation pulseaudio
 ```
 
 ### Set OpenGL version globally.
@@ -219,7 +221,7 @@ git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver
 Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
 mkdir /opt/ProjectMSDL/
-cp ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
+cp -r ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
 ```
 
 ### Setup python venv
