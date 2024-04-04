@@ -19,6 +19,26 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 ## Video Preview
 [![ProjectMAR Video 1](https://img.youtube.com/vi/8kj53j3EDec/0.jpg)](https://www.youtube.com/watch?v=8kj53j3EDec)
 
+# Index
+**Requirements:**
+- [Hardware Requirements](#hardware-requirements)
+- [Software Requirements](#software-requirements)
+
+**Prepare the Raspberry Pi:**
+- [Initial Setup](#initial-setup)
+
+**Add optional components:**
+- [Setup A2DP bluetooth audio receiver](#setup-a2dp-bluetooth-audio-receiver) (Optional)
+
+**Build the ProjectM dependencies:**
+- [Building libprojectM](#building-libprojectm)
+- [Building libPico-dev](#building-libpico-dev)
+- [Building ProjectM SDL2 Frontend](#building-projectm-sdl2-frontend)
+
+**Setup ProjectM Audio Receiver:**
+- [Setup ProjectM Audio Receiver](#setup-projectm-audio-receiver)
+- [Create startup entry](#create-startup-entry)
+
 ## Hardware Requirements:
 
 - Raspberry Pi 5 - 8GB
@@ -44,6 +64,69 @@ Make sure the OS is up-to-date
 ```
 sudo apt update
 sudo apt upgrade
+```
+
+## Setup A2DP bluetooth audio receiver
+Make the Pi permanently discoverable as an A2DP Sink.
+```
+sudo nano /etc/bluetooth/main.conf
+```
+
+And add / uncomment / change
+```
+...
+Class = 0x41C
+...
+DiscoverableTimeout = 0
+```
+
+```
+sudo systemctl restart bluetooth
+```
+
+```
+bluetoothctl
+[bluetooth]# power on
+[bluetooth]# discoverable on
+[bluetooth]# pairable on
+[bluetooth]# agent on
+```
+
+Reboot
+```
+sudo reboot
+```
+
+```
+bluetoothctl
+```
+Pair your device then trust it when you see Device <MAC> Connected: yes
+```
+trust DC:DC:E2:FF:04:A1
+```
+
+Auto pairing / trusting / no PIN
+```
+sudo apt-get install bluez-tools
+```
+
+```
+sudo nano /etc/systemd/system/bt-agent.service
+```
+
+```
+[Unit]
+Description=Bluetooth Auth Agent
+After=bluetooth.service
+PartOf=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
+KillSignal=SIGUSR1
+
+[Install]
+WantedBy=bluetooth.target
 ```
 
 ## Building libprojectM 
@@ -125,69 +208,6 @@ Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change
 window.fullscreen = true
 projectM.meshX = 64
 projectM.meshY = 32
-```
-
-## Setup A2DP bluetooth audio receiver
-Make the Pi permanently discoverable as an A2DP Sink.
-```
-sudo nano /etc/bluetooth/main.conf
-```
-
-And add / uncomment / change
-```
-...
-Class = 0x41C
-...
-DiscoverableTimeout = 0
-```
-
-```
-sudo systemctl restart bluetooth
-```
-
-```
-bluetoothctl
-[bluetooth]# power on
-[bluetooth]# discoverable on
-[bluetooth]# pairable on
-[bluetooth]# agent on
-```
-
-Reboot
-```
-sudo reboot
-```
-
-```
-bluetoothctl
-```
-Pair your device then trust it when you see Device <MAC> Connected: yes
-```
-trust DC:DC:E2:FF:04:A1
-```
-
-Auto pairing / trusting / no PIN
-```
-sudo apt-get install bluez-tools
-```
-
-```
-sudo nano /etc/systemd/system/bt-agent.service
-```
-
-```
-[Unit]
-Description=Bluetooth Auth Agent
-After=bluetooth.service
-PartOf=bluetooth.service
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/bt-agent -c NoInputNoOutput
-KillSignal=SIGUSR1
-
-[Install]
-WantedBy=bluetooth.target
 ```
 
 ## Setup ProjectM Audio Receiver
