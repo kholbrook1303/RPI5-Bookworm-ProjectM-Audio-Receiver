@@ -299,4 +299,9 @@ KillSignal=SIGUSR1
 [Install]
 WantedBy=bluetooth.target
 ```
+
+## Enable and start the bluetooth service
+```
+sudo systemctl enable bt-agent
+sudo systemctl start bt-agent
 ```
