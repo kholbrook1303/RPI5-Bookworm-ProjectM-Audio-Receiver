@@ -31,6 +31,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 - [Building libprojectM](#building-libprojectm)
 - [Building libPico-dev](#building-libpico-dev)
 - [Building ProjectM SDL2 Frontend](#building-projectm-sdl2-frontend)
+- [Setup textures and presets](#setup-textures-and-presets)
 
 **Setup ProjectM Audio Receiver:**
 - [Setup ProjectM Audio Receiver](#setup-projectm-audio-receiver)
@@ -152,6 +153,26 @@ window.fullscreen = true
 projectM.meshX = 64
 projectM.meshY = 32
 ```
+
+## Setup textures and presets
+The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.
+
+The projectM library does not ship with any presets or textures so you want to grab them and deploy them:
+***Note:** I am currently hand selecting presets that are not only appealing and mostly reactive, but will play seamlessly on the Raspberry Pi.  This will available in the coming weeks.*
+
+Textures:
+- [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
+  use with _any_ preset pack!
+
+Presets:
+- [Cream of the Crop Pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop) - A collection of about 10K
+  presets compiled by Jason Fletcher. Currently, projectM's default preset pack.
+- [Classic projectM Presets](https://github.com/projectM-visualizer/presets-projectm-classic) - A bit over 4K presets
+  shipped with previous versions of projectM.
+- [Milkdrop 2 Presets](https://github.com/projectM-visualizer/presets-milkdrop-original) - The original preset
+  collection shipped with Milkdrop and Winamp.
+- [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
+
 
 ## Setup ProjectM Audio Receiver
 ### Install dependencies
