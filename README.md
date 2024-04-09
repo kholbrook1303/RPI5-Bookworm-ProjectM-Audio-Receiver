@@ -55,8 +55,9 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Software Requirements:
 ```
-Raspberry Pi OS Bookworm
+Raspberry Pi OS Bookworm (Both Desktop and Lite have now been tested)
 ```
+***Note:** For reasons unknown, Lite is worse in performance than desktop.*
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -73,7 +74,7 @@ sudo apt upgrade
 ### Install the build tools and dependencies
 Get the mandatory packages:
 ```
-sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
+sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git libsdl2-dev
 ```
 
 Install additional features:
@@ -104,7 +105,7 @@ cmake --build . --parallel && sudo cmake --build . --target install
 ## Building libPico-dev
 Because the current repository contains a problematic version of libPico-dev, we must build from source.
 
-Obtain a tested working build of libPico-dev
+Obtain a tested working build of libPico-dev and build.  ***Note:** This is going to take some time to install*
 ```
 cd ~
 wget https://pocoproject.org/releases/poco-1.12.5/poco-1.12.5-all.tar.bz2
@@ -239,6 +240,11 @@ par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
 ## Setup A2DP bluetooth audio receiver (Optional)
+Acquire all the necessary dependecies
+```
+sudo apt-get install pulseaudio-module-bluetooth
+```
+
 Make the Pi permanently discoverable as an A2DP Sink.
 ```
 sudo nano /etc/bluetooth/main.conf
