@@ -31,6 +31,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 - [Building libprojectM](#building-libprojectm)
 - [Building libPico-dev](#building-libpico-dev)
 - [Building ProjectM SDL2 Frontend](#building-projectm-sdl2-frontend)
+- [Setup textures and presets](#setup-textures-and-presets)
 
 **Setup ProjectM Audio Receiver:**
 - [Setup ProjectM Audio Receiver](#setup-projectm-audio-receiver)
@@ -38,6 +39,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 **Add optional components:**
 - [Setup A2DP bluetooth audio receiver](#setup-a2dp-bluetooth-audio-receiver) (Optional)
+- [Setup AirPlay audio receiver](#setup-airplay-receiver) (Optional)
 
 ## Hardware Requirements:
 
@@ -54,8 +56,9 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Software Requirements:
 ```
-Raspberry Pi OS Bookworm
+Raspberry Pi OS Bookworm (Desktop Mode)
 ```
+***Note:** For reasons unknown (Possibly even SD Card performance), Lite is worse in performance than desktop and requires auto login with autostart mechanism.  Further testing is required to complete this.*
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -72,7 +75,7 @@ sudo apt upgrade
 ### Install the build tools and dependencies
 Get the mandatory packages:
 ```
-sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
+sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git libsdl2-dev
 ```
 
 Install additional features:
@@ -103,7 +106,7 @@ cmake --build . --parallel && sudo cmake --build . --target install
 ## Building libPico-dev
 Because the current repository contains a problematic version of libPico-dev, we must build from source.
 
-Obtain a tested working build of libPico-dev
+Obtain a tested working build of libPico-dev and build.  ***Note:** This is going to take some time to install*
 ```
 cd ~
 wget https://pocoproject.org/releases/poco-1.12.5/poco-1.12.5-all.tar.bz2
@@ -150,6 +153,26 @@ window.fullscreen = true
 projectM.meshX = 64
 projectM.meshY = 32
 ```
+
+## Setup textures and presets
+The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.
+
+The projectM library does not ship with any presets or textures so you want to grab them and deploy them:
+***Note:** I am currently hand selecting presets that are not only appealing and mostly reactive, but will play seamlessly on the Raspberry Pi.  This will available in the coming weeks.*
+
+Textures:
+- [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
+  use with _any_ preset pack!
+
+Presets:
+- [Cream of the Crop Pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop) - A collection of about 10K
+  presets compiled by Jason Fletcher. Currently, projectM's default preset pack.
+- [Classic projectM Presets](https://github.com/projectM-visualizer/presets-projectm-classic) - A bit over 4K presets
+  shipped with previous versions of projectM.
+- [Milkdrop 2 Presets](https://github.com/projectM-visualizer/presets-milkdrop-original) - The original preset
+  collection shipped with Milkdrop and Winamp.
+- [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
+
 
 ## Setup ProjectM Audio Receiver
 ### Install dependencies
@@ -231,13 +254,24 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ## Create startup entry
 For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
 
-Edit the wayfire.ini file to include the startup entry:
+if using the Desktop version, edit the wayfire.ini file to include the startup entry:
 ```
 [autostart]
 par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
+If using the headless version, edit the /home/<user>/.bashrc and make sure you enable autologin through raspi-config
+```
+sudo nano /home/<user>/.bashrc  # Ensure you put your username
+sudo raspi-config               # Goto System Options - Boot / Auto Logon - Console Auto Logon
+```
+
 ## Setup A2DP bluetooth audio receiver (Optional)
+Acquire all the necessary dependecies
+```
+sudo apt-get install pulseaudio-module-bluetooth
+```
+
 Make the Pi permanently discoverable as an A2DP Sink.
 ```
 sudo nano /etc/bluetooth/main.conf
@@ -304,4 +338,54 @@ WantedBy=bluetooth.target
 ```
 sudo systemctl enable bt-agent
 sudo systemctl start bt-agent
+```
+
+## Setup AirPlay receiver (Optional)
+
+### Setup and build Shairport Sync
+* It is advised to follow the most recent build steps from https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md*
+
+Install required dependencies
+```
+sudo apt install --no-install-recommends build-essential git autoconf automake libtool libpulse-dev \
+    libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
+    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xx
+```
+
+Clone and build shairport-sync
+```
+cd ~
+git clone https://github.com/mikebrady/shairport-sync.git
+cd shairport-sync
+autoreconf -fi
+./configure --sysconfdir=/etc --with-alsa \
+    --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
+make
+sudo make install
+```
+
+### Setup and build NQPTP
+* It is advised to follow the most recent build steps from https://github.com/mikebrady/nqptp*
+
+Clone and build nqptp
+```
+cd ~
+git clone https://github.com/mikebrady/nqptp.git
+cd nqptp
+autoreconf -fi
+./configure --with-systemd-startup
+make
+sudo make install
+```
+
+## Enable Services
+```
+sudo systemctl enable nqptp
+sudo systemctl start nqptp
+```
+
+## Add a startup entry to run shairport-sync as a daemon
+Edit the wayfire.ini file and add shairport-sync as an autostart entry:
+```
+shairport = /usr/local/bin/shairport-sync
 ```
