@@ -55,9 +55,9 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Software Requirements:
 ```
-Raspberry Pi OS Bookworm (Both Desktop and Lite have now been tested)
+Raspberry Pi OS Bookworm (Desktop Mode)
 ```
-***Note:** For reasons unknown, Lite is worse in performance than desktop.*
+***Note:** For reasons unknown (Possibly even SD Card performance), Lite is worse in performance than desktop and requires auto login with autostart mechanism.  Further testing is required to complete this.*
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -233,10 +233,16 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ## Create startup entry
 For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
 
-Edit the wayfire.ini file to include the startup entry:
+if using the Desktop version, edit the wayfire.ini file to include the startup entry:
 ```
 [autostart]
 par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+```
+
+If using the headless version, edit the /home/<user>/.bashrc and make sure you enable autologin through raspi-config
+```
+sudo nano /home/<user>/.bashrc  # Ensure you put your username
+sudo raspi-config               # Goto System Options - Boot / Auto Logon - Console Auto Logon
 ```
 
 ## Setup A2DP bluetooth audio receiver (Optional)
