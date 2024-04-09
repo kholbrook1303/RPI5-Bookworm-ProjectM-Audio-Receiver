@@ -333,6 +333,7 @@ sudo apt install --no-install-recommends build-essential git autoconf automake l
 
 Clone and build shairport-sync
 ```
+cd ~
 git clone https://github.com/mikebrady/shairport-sync.git
 cd shairport-sync
 autoreconf -fi
@@ -347,6 +348,7 @@ sudo make install
 
 Clone and build nqptp
 ```
+cd ~
 git clone https://github.com/mikebrady/nqptp.git
 cd nqptp
 autoreconf -fi
