@@ -45,7 +45,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 - Raspberry Pi 5 - 8GB
 - 5v/5A USB-C Power Supply
-- SanDisk 32GB Extreme PRO® microSD
+- SanDisk 32GB Extreme PRO microSD
 - Case with active cooling (The following are my recommendations in order of preference)
     - Argon ONE V3 Case for Raspberry Pi 5 w/ Argon BLSTR DAC with Ground Loop Isolator (This is going to get costly and is not necessary for basic audio)
     - Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan

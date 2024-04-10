@@ -11,6 +11,7 @@ from subprocess import Popen, PIPE
 from threading import Thread, Event
 
 from lib.config import Config, APP_ROOT
+from lib.common import execute, execute_managed, read_stdout, read_stderr
 from lib.log import log_init
 
 log = logging.getLogger()
@@ -23,61 +24,23 @@ class SignalMonitor:
 
     def set_exit(self, signum, frame):
         self.exit = True
-    
-class ProjectMAR(object):
-    def __init__(self):        
-        pass
-    
-    """Execute a process.
-    @param args: an array of arguments including the executable
-    @param shell: specifies wether or not to run the command as shell
-    @returns a process instance
-    """
-    def _execute(self, args, shell=False):
-        process = Popen(args, stdin=PIPE, stderr=PIPE, stdout=PIPE, universal_newlines=True, shell=shell)
-        return process
-    
-    """Execute a managed process.
-    @param args: an array of arguments including the executable
-    @param shell: specifies wether or not to run the command as shell
-    @returns a boolean indicating whether the process execution failed
-    """
-    def _execute_managed(self, args, shell=False):
-        log.debug('Running command: {}'.format(args))
-        process = Popen(args, universal_newlines=True, shell=shell)
-        stdout,stderr = process.communicate()
         
-        if stdout:
-            log.debug('stdout: {}'.format(stdout))
-        if stderr:
-            log.error(stderr)
-            return False
-        if process.returncode != 0:
-            log.error('command return code: {}'.format(process.returncode))
-            return False
-        
-        return True
-    
-    """Process stdout of a process instance.
-    @param process: a process instance 
-    @yields each line of the stdout
-    """
-    def _read_stdout(self, process):
-        for line in iter(process.stdout.readline, ""):
-            yield line.strip()
-    
-    """Process stderr of a process instance.
-    @param process: a process instance 
-    @yields each line of the stderr
-    """
-    def _read_stderr(self, process):
-        for line in iter(process.stderr.readline, ""):
-            yield line.strip()
+class BluetoothDevice:
+    def __init__(self, device_name, mac_address):
+        self.name = device_name
+        self.description = None
+        self.mac_address = mac_address
+        self.index = None
+     
+# TODO: Get method to control shairport-sync
+class AirPlayDevice:
+    def __init__(self, device_name):
+        self.name = device_name
+        self.description = None
+        self.index = None
             
-    
-class Control(ProjectMAR):
+class DeviceControl():
     def __init__(self, config):
-        super().__init__()
         
         self.config = config
         
@@ -87,21 +50,48 @@ class Control(ProjectMAR):
         self.sinks = dict()
         self.sources = dict()
         self.modules = dict()
+        self.bluetooth_devices = dict()
+        self.airplay_devices = dict()
         
-        self.source_device = None
-        self.source_device_type = None
+        self.environment = self._get_environment()
+
+        self.source_device = {
+            'name': None,
+            'type': None,
+            'id': None,
+            'mac': None
+            }
+        
         self.sink_device = None
         
         self.pa = Pulse('ProjectMAR')
-        self.ar_mode = self.config.general['ar_mode']
+        self.audio_mode = self.config.media_player['audio_mode']
         
-        self.supported_sources = [
-            'alsa_input',
-            'bluez_source'
+        self.priority_sinks = [
+            'hdmi'
             ]
         self.supported_sinks = [
             'alsa_output'
             ]
+        self.supported_sources = [
+            'alsa_input',
+            'bluez_source'
+            ]
+
+    def _get_environment(self):
+        with open('/boot/issue.txt', 'r') as infile:
+            data = infile.read()
+            for line in data.splitlines():
+                if 'stage2' in line:
+                    return 'lite'
+                elif 'stage4' in line:
+                    return 'desktop'
+                
+        return None
+        
+    def _clear_source_device(self):
+        for key in self.source_device.keys():
+            self.source_device[key] = None
     
     def _get_display_config(self, resolution):
         display_config = {
@@ -115,8 +105,8 @@ class Control(ProjectMAR):
         display_configs_regex = r'^(?P<resolution>' + resolution + ')\spx,\s(?P<refreshRate>\d+\.\d+)'
         current_resolution_regex = r'^(?P<resolution>\d+x\d+)\spx,\s(?P<refreshRate>\d+\.\d+).*?current'
         
-        randr = self._execute(['wlr-randr'])
-        for line in self._read_stdout(randr):
+        randr = execute(['wlr-randr'])
+        for line in read_stdout(randr):
             log.debug('wlr-randr output: ' + line)
             
             match = re.search(display_device_regex, line, re.I)
@@ -139,24 +129,28 @@ class Control(ProjectMAR):
         self.sink_device = sink_name
                     
         sink_volume = PulseVolumeInfo(volume, sink_channels)
+        log.debug('Setting sink {} volume to {}'.format(sink_name, sink_volume))
         self.pa.sink_volume_set(device.index, sink_volume)
                 
     def _control_source_device(self, source_name, source_channels, device, device_type, volume=1):
-        log.info('Identified a new source device: {0} ({1})'.format(
-            source_name,device.description
+        log.info('Identified a new source {0} device: {1} ({2})'.format(
+            device_type,source_name,device.description
             ))
-                    
-        if self.source_device and self.source_device.startswith('bluez_source'):
-            log.info('Disconnecting bluetooth device: {}'.format(self.source_device))
-            device_mac = self.source_device.split('.')[1].replace('_', ':')
-            self._execute_managed(['bluetoothctl', 'disconnect', device_mac])
-
-        self.source_device_type = device_type
-        self.source_device = source_name
-                
-        self.pa.default_set(device)
-        source_volume = PulseVolumeInfo(volume, source_channels)
-        self.pa.source_volume_set(device.index, source_volume)
+        
+        if device_type == 'bluetooth':
+            log.debug('{} {} {}'.format(device_type, source_name, self.source_device['name']))
+            if self.source_device['name'] and source_name != self.source_device['name']:
+                log.info('Disconnecting bluetooth device: {}'.format(self.source_device['name']))
+                execute_managed(['bluetoothctl', 'disconnect', self.source_device['mac']])
+        
+        if not isinstance(device, BluetoothDevice):
+            log.debug('Setting the source device: {}'.format(source_name))
+            self.pa.default_set(device)
+        
+        if source_channels:
+            source_volume = PulseVolumeInfo(volume, source_channels)
+            log.debug('Setting source {} volume to {}'.format(source_name, source_volume))
+            self.pa.source_volume_set(device.index, source_volume)
         
         if device_type == 'aux' and not source_name.startswith('bluez_source'):
             self.unload_loopback_modules()
@@ -165,20 +159,41 @@ class Control(ProjectMAR):
                 'sink=' + self.sink_device,
                 'latency_msec=20'
                 ])
+        elif device_type == 'mic':
+            self.unload_loopback_modules()
+
+        self.source_device['name'] = source_name
+        self.source_device['type'] = device_type
+        if device_type == 'bluetooth':
+            self.source_device['mac'] = device.mac_address
     
     """Updates the current source/sink/modules"""
     def update_devices(self):
         try:
+            self.bluetooth_devices.clear()
+            bluetoothctl =  execute(['bluetoothctl', 'devices', 'Connected'])
+            for line in read_stdout(bluetoothctl):
+                match = re.match(r'^Device\s(?P<mac_address>.*?)\s(?P<device>.*?)$', line)
+                if match:
+                    mac_address = match.group('mac_address')
+                    device = match.group('device')
+                    
+                    log.debug('Found bluetooth device: {} ({})'.format(mac_address, device))
+                    self.bluetooth_devices[mac_address] = device
+            
             self.sinks.clear()
             for sink in self.pa.sink_list():
+                log.debug('Found sink device: {} {}'.format(sink.name, sink))
                 self.sinks[sink.name] = sink
             
             self.sources.clear()
             for source in self.pa.source_list():
+                log.debug('Found source device: {} {}'.format(source.name, source))
                 self.sources[source.name] = source
             
             self.modules.clear()
             for module in self.pa.module_list():
+                log.debug('Found module device: {} {}'.format(module.name, module))
                 self.modules[module.name] = {
                     'module': module
                     }
@@ -192,35 +207,52 @@ class Control(ProjectMAR):
                     pass
             
                 self.modules[module.name]['argument'] = m_args
+                
         except Exception as e:
-            log.error('Failed to update PulseAudio devices')
+            log.exception('Failed to update PulseAudio devices:')
         
     def enforce_resolution(self):
-        resolution = self.config.general['resolution']
-        display_config = self._get_display_config(resolution)
+        if self.environment == 'desktop':
+            resolution = self.config.general['resolution']
+            display_config = self._get_display_config(resolution)
           
-        if len(display_config['resolutions']) == 0:
-            log.warning('There is currently no display connected: {}'.format(display_config))  
-        elif display_config['current_resolution'] == max(display_config['resolutions']):
-            log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
-        else:
-            log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
-            randr = self._execute_managed([
-                'wlr-randr', '--output', display_config['device'], 
-                '--mode', max(display_config['resolutions'])
-                ])
+            if len(display_config['resolutions']) == 0:
+                log.warning('There is currently no display connected: {}'.format(display_config))  
+            elif display_config['current_resolution'] == max(display_config['resolutions']):
+                log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
+            else:
+                log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
+                randr = execute_managed([
+                    'wlr-randr', '--output', display_config['device'], 
+                    '--mode', max(display_config['resolutions'])
+                    ])
             
     def kill_prior_instances(self):
-        processes = [
-            'projectMSDL'
-            ]
+        app_name = os.path.basename(os.path.abspath(__file__))
+        pgrep = execute(['pgrep', '--list-full', 'python3'])
+        for line in read_stdout(pgrep):
+            log.debug('Identified process: {}'.format(line))
+            match = re.match(r'^(?P<pid>\d+)\s(?P<process>.*?)\s(?P<command>.*?)$', line)
+            if match:
+                pid     = match.group('pid')
+                process = match.group('process')
+                command = match.group('command')
+                
+                if process.endswith('python3') and command.endswith(app_name):
+                    log.info('Killing process {} ({})'.format(process, line))
+                    execute_managed(['sudo', 'kill', pid])
+                    break
+                    
+        # processes = [
+        #     'projectMSDL'
+        #     ]
         
-        for process in processes:
-            pgrep = self._execute(['pgrep', '-f', process])
-            for line in self._read_stdout(pgrep):
-                log.info('Killing process {} ({})'.format(process, line))
-                self._execute_managed(['sudo', 'killall',  process])
-                break
+        # for process in processes:
+        #     pgrep = execute(['pgrep', '-f', process])
+        #     for line in read_stdout(pgrep):
+        #         log.info('Killing process {} ({})'.format(process, line))
+        #         execute_managed(['sudo', 'killall',  process])
+        #         break
             
     def unload_loopback_modules(self):
         for module in self.pa.module_list():
@@ -233,7 +265,7 @@ class Control(ProjectMAR):
                     if m_args['source'].startswith('bluez_source'):
                         continue
                     
-                    log.info('Unloading module {} ({})'.format(m_args['source'], module.index))
+                    log.warning('Unloading module {} ({})'.format(m_args['source'], module.index))
                     self.pa.module_unload(module.index)
                 except TypeError:
                     pass
@@ -243,41 +275,67 @@ class Control(ProjectMAR):
         if self.sink_device and self.sink_device not in self.sinks:
             log.warning('Sink device {} has been disconnected'.format(self.sink_device))
             self.sink_device = None
-            
-        # Check for any disconnected source devices
-        if self.source_device and self.source_device not in self.sources:
-            log.warning('Source device {} has been disconnected'.format(self.source_device))
-            self.source_device = None
-            if self.source_device_type == 'aux':
-                self.unload_loopback_modules()
-                self.source_device_type = None
         
         # Check for new sink devices
-        for sink_name, device in self.sinks.items():
-            sink_channels = len(device.volume.values)
-            if self.ar_mode == 'automatic':
-                if any(sink_name.startswith(dev) for dev in self.supported_sinks) and self.sink_device != sink_name:
-                    self._control_sink_device(sink_name, sink_channels, device)
-                    break
+        if not self.sink_device:    
+            if self.audio_mode == 'automatic':
+                for sink_name in list(self.sinks.keys()):
+                    if not any(sink_part in sink_name for sink_part in self.priority_sinks):
+                        log.warning('Dropping sink {} as it is not in the priority list'.format(sink_name))
+                        self.sinks.pop(sink_name)
                     
-            elif self.ar_mode == 'manual':
-                if sink_name in self.config.manual['sink_devices'] and self.sink_device != sink_name:
-                    self._control_sink_device(sink_name, sink_channels, device)
+            for sink_name, device in self.sinks.items():
+                sink_channels = len(device.volume.values)
+                if self.audio_mode == 'automatic':
+                    if self.sink_device == sink_name:
+                        break
+                    elif any(sink_name.startswith(dev) for dev in self.supported_sinks) and self.sink_device != sink_name:
+                        self._control_sink_device(sink_name, sink_channels, device)
+                        break
                     
-            else:
-                raise Exception('The specified mode \'{0}\' is invalid!'.format(self.ar_mode))
+                elif self.audio_mode == 'manual':
+                    if self.sink_device == sink_name:
+                        break
+                    elif sink_name in self.config.manual['sink_devices'] and self.sink_device != sink_name:
+                        self._control_sink_device(sink_name, sink_channels, device)
+                        break
+                else:
+                    raise Exception('The specified mode \'{0}\' is invalid!'.format(self.audio_mode))
             
                 
         if not self.sink_device:
             log.warning("No sink devices were found!")
+            
+        # Check for any disconnected source devices
+        if self.source_device['type'] == 'bluetooth':
+            if not self.bluetooth_devices.get(self.source_device['mac']):
+                log.warning('Source device {} has been disconnected'.format(self.source_device['name']))
+                
+                self._clear_source_device()
+            
+        elif self.source_device['name'] and self.source_device['name'] not in self.sources:
+            log.warning('Source device {} has been disconnected'.format(self.source_device['name']))
+            if self.source_device['type'] == 'aux':
+                self.unload_loopback_modules()
+                
+            self._clear_source_device()
         
         devices_found = 0
         devices_connected = 0
+        for mac_address, device_name in self.bluetooth_devices.items():
+            devices_found += 1
+            
+            if self.source_device['name'] != device_name and devices_connected == 0:
+                device = BluetoothDevice(device_name, mac_address)
+                self._control_source_device(device_name, None, device, 'bluetooth')
+                
+            devices_connected += 1
+                
         for source_name, device in self.sources.items():
             source_channels = len(device.volume.values)
             source_volume = device.volume.values
             
-            if self.ar_mode == 'automatic':
+            if self.audio_mode == 'automatic':
                 if not any(src in source_name for src in self.supported_sources):
                     continue
             
@@ -286,43 +344,40 @@ class Control(ProjectMAR):
                 source_channels = len(device.volume.values)
                 source_volume = device.volume.values
             
-                if self.source_device != source_name and devices_connected == 0:
+                if self.source_device['name'] != source_name and devices_connected == 0:
+                    if self.config.automatic['audio_mode'] == 'bluetooth':
+                        continue
+
                     self._control_source_device(source_name, source_channels, device, self.config.automatic['audio_mode'])
                     devices_connected += 1
                     break
                 
-            elif self.ar_mode == 'manual':
+            elif self.audio_mode == 'manual':                        
                 if source_name in self.config.manual['mic_devices']:
                     devices_found += 1
-                    if self.source_device != source_name and devices_connected == 0:
+                    if self.source_device['name'] != source_name and devices_connected == 0:
                         self._control_source_device(source_name, source_channels, device, 'mic', volume=.75)
-                        devices_connected += 1
-                        
-                elif source_name.startswith('bluez_source'):
-                    devices_found += 1
-                    if self.source_device != source_name and devices_connected == 0:
-                        self._control_source_device(source_name, source_channels, device, 'aux')
                         devices_connected += 1
                         
                 elif source_name in self.config.manual['aux_devices']:
                     devices_found += 1
-                    if self.source_device != source_name and devices_connected == 0:
+                    if self.source_device['name'] != source_name and devices_connected == 0:
                         self._control_source_device(source_name, source_channels, device, 'aux', volume=.75)
                         devices_connected += 1
                         
             else:
-                raise Exception('The specified mode \'{0}\' is invalid!'.format(self.ar_mode))
-            
+                raise Exception('The specified mode \'{0}\' is invalid!'.format(self.audio_mode))
         
         if devices_found == 0:
             log.debug("No mic/aux devices detected")
-            self.source_device = None
-            self.source_device_type = None
+            self._clear_source_device()
         
     def control(self):
         while not self.thread_event.is_set():
             try:
-                self.enforce_resolution()
+                if self.config.general['projectm_enabled']:
+                    self.enforce_resolution()
+                    
                 self.update_devices()
                 self.control_devices()
             except Exception as e:
@@ -331,7 +386,7 @@ class Control(ProjectMAR):
             time.sleep(5)
         
     def start(self):
-        self.kill_prior_instances()
+        # self.kill_prior_instances()
 
         self.thread = Thread(
             target=self.control,
@@ -345,10 +400,8 @@ class Control(ProjectMAR):
         self.thread.join()
         self.pa.close()
 
-class Wrapper(ProjectMAR):
-    def __init__(self, config, control):
-        super().__init__()
-        
+class ProjectMWrapper():
+    def __init__(self, config, control):       
         self.config = config
         self.control = control
         
@@ -381,13 +434,13 @@ class Wrapper(ProjectMAR):
                 time.sleep(self.projectm_config.projectm['projectm.transitionduration'])
                 log.info('Taking a screenshot of {0}'.format(preset))
                 screenshot_path = os.path.join(self.preset_screenshot_path, preset_screenshot_name)
-                self._execute_managed(['grim', screenshot_path])
+                execute_managed(['grim', screenshot_path])
                             
             self.preset_screenshot_index += 1
                     
     def _monitor_output(self):
         preset_regex = r'^INFO: Displaying preset: (?P<name>.*)$'
-        for line in self._read_stderr(self.projectm_process):
+        for line in read_stderr(self.projectm_process):
             log.debug('ProjectM Output: {0}'.format(line))
             
             try:
@@ -399,8 +452,9 @@ class Wrapper(ProjectMAR):
                     self.preset_start = time.time()
                 
                     # Take a preview screenshot
-                    if self.config.projectm['screenshots_enabled'] and self.control.source_device:
-                        self._take_screenshot(preset)
+                    if self.control.environment == 'desktop':
+                        if self.config.projectm['screenshots_enabled'] and self.control.source_device:
+                            self._take_screenshot(preset)
             except:
                 log.exception('Failed to process output')
             
@@ -413,14 +467,14 @@ class Wrapper(ProjectMAR):
                 if duration >= (self.preset_display_duration + 5):
                     log.warning('The visualization has not changed in the alloted timeout!')
                     log.info('Manually transitioning to the next visualization...')
-                    xautomation_process = self._execute(['xte'])
+                    xautomation_process = execute(['xte'])
                     xautomation_process.communicate(input=b'key n\n')
                 
             time.sleep(1)
             
     def _manage_playlist(self):
         if self.config.projectm['advanced_shuffle'] == True:
-            log.info('Performing smart randomization on presets!')
+            log.info('Performing smart randomization on presets...')
             presets = list()
             for root, dirs, files in os.walk(self.preset_path):
                 for name in files:
@@ -451,7 +505,7 @@ class Wrapper(ProjectMAR):
         self._manage_playlist()
     
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
-        self.projectm_process = self._execute(
+        self.projectm_process = execute(
             [app_path, '--beatSensitivity=' + str(beatSensitivity)]
             )
         
@@ -492,20 +546,21 @@ def main():
     sm = SignalMonitor()
     
     log.info('Initializing projectMAR System Control in {0} mode...'.format(
-        config.general['ar_mode']
+        config.media_player['audio_mode']
         ))
-    pmc = Control(config)
-    pmc.start()
+    device_ctrl = DeviceControl(config)
+    device_ctrl.start()
     
-    log.info('Initializing projectMSDL Wrapper...')
-    pmw = Wrapper(config, pmc)
+    if config.general['projectm_enabled']:
+        log.info('Initializing projectMSDL Wrapper...')
+        projectm_wrapper = ProjectMWrapper(config, device_ctrl)
     
-    log.info('Executing ProjectMSDL and monitorring presets for hangs...')
-    pmw.execute()
+        log.info('Executing ProjectMSDL and monitorring presets for hangs...')
+        projectm_wrapper.execute()
     
     while not sm.exit:
         try:
-            if pmw.projectm_process.poll() != None:
+            if config.general['projectm_enabled'] and projectm_wrapper.projectm_process.poll() != None:
                 log.warning('ProjectM has terminated!')
                 break
             
@@ -517,10 +572,12 @@ def main():
             log.exception('projectMAR failed!')
             
     log.info('Closing down all threads/processes...')
-    pmw.thread_event.set()
     
-    pmw.stop()
-    pmc.stop()
+    if config.general['projectm_enabled']:
+        projectm_wrapper.thread_event.set()
+        projectm_wrapper.stop()
+        
+    device_ctrl.stop()
             
     log.info('Exiting ProjectMAR!')
     sys.exit(0)
