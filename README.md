@@ -377,7 +377,7 @@ Install required dependencies
 ```
 sudo apt install --no-install-recommends build-essential git autoconf automake libtool libpulse-dev \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
-    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xx
+    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
 ```
 
 Clone and build shairport-sync
