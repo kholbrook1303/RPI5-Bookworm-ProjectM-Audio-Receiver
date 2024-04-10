@@ -252,6 +252,8 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```
 
 ## Create startup entry
+
+### RPI OS Desktop Instructions
 For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
 
 if using the Desktop version, edit the wayfire.ini file to include the startup entry:
@@ -260,10 +262,36 @@ if using the Desktop version, edit the wayfire.ini file to include the startup e
 par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
-If using the headless version, edit the /home/<user>/.bashrc and make sure you enable autologin through raspi-config
+### RPI OS Lite Instructions
+If using the headless version, create a user service to start the application and enable autologon
+
+Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
 ```
-sudo nano /home/<user>/.bashrc  # Ensure you put your username
-sudo raspi-config               # Goto System Options - Boot / Auto Logon - Console Auto Logon
+sudo raspi-config
+```
+
+Create a service by running
+```
+sudo nano /etc/systemd/user/projectm.service
+```
+
+Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
+```
+[Unit]
+Description=ProjectMAR
+
+[Service]
+Type=simple
+ExecStart=/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+Enable the service
+```
+sudo systemctl --user enable projectm
 ```
 
 ## Setup A2DP bluetooth audio receiver (Optional)
@@ -334,7 +362,7 @@ KillSignal=SIGUSR1
 WantedBy=bluetooth.target
 ```
 
-## Enable and start the bluetooth service
+### Enable and start the bluetooth service
 ```
 sudo systemctl enable bt-agent
 sudo systemctl start bt-agent
@@ -349,7 +377,7 @@ Install required dependencies
 ```
 sudo apt install --no-install-recommends build-essential git autoconf automake libtool libpulse-dev \
     libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev \
-    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xx
+    libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
 ```
 
 Clone and build shairport-sync
@@ -378,14 +406,44 @@ make
 sudo make install
 ```
 
-## Enable Services
+### Enable Services
 ```
 sudo systemctl enable nqptp
 sudo systemctl start nqptp
 ```
 
-## Add a startup entry to run shairport-sync as a daemon
+### Add a startup entry to run shairport-sync as a daemon
+
+### RPI OS Desktop Instructions
 Edit the wayfire.ini file and add shairport-sync as an autostart entry:
 ```
 shairport = /usr/local/bin/shairport-sync
+```
+
+### RPI OS Lite Instructions
+If using the headless version, create a user service to start the application
+
+Create a service by running
+```
+sudo nano /etc/systemd/user/shairport.service
+```
+
+Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
+```
+[Unit]
+Description=Shairport-Sync
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/shairport-sync
+Restart=on-failure
+StandardOutput=file:%h/log_file
+
+[Install]
+WantedBy=default.target
+```
+
+Enable the service
+```
+sudo systemctl --user enable shairport
 ```
