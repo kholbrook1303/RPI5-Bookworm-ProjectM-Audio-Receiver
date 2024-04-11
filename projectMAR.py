@@ -274,7 +274,9 @@ class DeviceControl():
         # Check for any disconnected sink devices
         if self.sink_device and self.sink_device not in self.sinks:
             log.warning('Sink device {} has been disconnected'.format(self.sink_device))
+            self.unload_loopback_modules()
             self.sink_device = None
+            self._clear_source_device()
         
         # Check for new sink devices
         if not self.sink_device:    
@@ -305,6 +307,7 @@ class DeviceControl():
                 
         if not self.sink_device:
             log.warning("No sink devices were found!")
+            return
             
         # Check for any disconnected source devices
         if self.source_device['type'] == 'bluetooth':
