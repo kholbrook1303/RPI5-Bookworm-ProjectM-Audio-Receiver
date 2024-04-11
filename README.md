@@ -291,7 +291,7 @@ WantedBy=default.target
 
 Enable the service
 ```
-sudo systemctl --user enable projectm
+systemctl --user enable projectm
 ```
 
 ## Setup A2DP bluetooth audio receiver (Optional)
@@ -445,5 +445,6 @@ WantedBy=default.target
 
 Enable the service
 ```
-sudo systemctl --user enable shairport
+systemctl --user enable shairport
+systemctl --user start shairport
 ```
