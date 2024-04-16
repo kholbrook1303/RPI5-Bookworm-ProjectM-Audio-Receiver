@@ -11,8 +11,8 @@ from subprocess import Popen, PIPE
 from threading import Thread, Event
 
 from lib.config import Config, APP_ROOT
-from lib.common import execute, execute_managed, read_stdout, read_stderr
 from lib.log import log_init
+from lib.wrappers import Device, ProjectM, WaylandDisplay, XDisplay, Bluetooth
 
 log = logging.getLogger()
     
@@ -54,6 +54,28 @@ class DeviceControl():
         self.airplay_devices = dict()
         
         self.environment = self._get_environment()
+        
+        self.display_ctrl = None
+        if self.environment == 'desktop':
+            display_method = None
+            display_type = os.environ['XDG_SESSION_TYPE']
+            log.info('Identified display type: {}'.format(display_type))
+            
+            if display_type == 'x11':
+                display_method = XDisplay
+            
+            elif display_type == 'wayland':
+                display_method = WaylandDisplay
+                
+            else:
+                raise Exception('Display type {} is not currently supported!'.format(display_type))
+            
+            self.display_ctrl = display_method(
+                self.config.general['resolution'],
+                self.environment
+                )
+
+        self.bth = Bluetooth()
 
         self.source_device = {
             'name': None,
@@ -93,37 +115,6 @@ class DeviceControl():
         for key in self.source_device.keys():
             self.source_device[key] = None
     
-    def _get_display_config(self, resolution):
-        display_config = {
-            'device': None,
-            'description': None,
-            'current_resolution': None,
-            'resolutions': list()
-            }
-        
-        display_device_regex = r'^(?P<device>HDMI.*?)\s\"(?P<description>.*?)\"'
-        display_configs_regex = r'^(?P<resolution>' + resolution + ')\spx,\s(?P<refreshRate>\d+\.\d+)'
-        current_resolution_regex = r'^(?P<resolution>\d+x\d+)\spx,\s(?P<refreshRate>\d+\.\d+).*?current'
-        
-        randr = execute(['wlr-randr'])
-        for line in read_stdout(randr):
-            log.debug('wlr-randr output: ' + line)
-            
-            match = re.search(display_device_regex, line, re.I)
-            if match:
-                display_config['device'] = match.group('device')
-                display_config['description'] = match.group('description')
-                
-            match = re.search(display_configs_regex, line, re.I)
-            if match:
-                display_config['resolutions'].append(match.group('resolution') + '@' + match.group('refreshRate') + 'Hz')
-            
-            match = re.search(current_resolution_regex, line, re.I)
-            if match:
-                display_config['current_resolution'] = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
-                
-        return display_config
-    
     def _control_sink_device(self, sink_name, sink_channels, device, volume=1):
         log.info('Identified a new sink device: {}'.format(sink_name))
         self.sink_device = sink_name
@@ -137,11 +128,10 @@ class DeviceControl():
             device_type,source_name,device.description
             ))
         
-        if device_type == 'bluetooth':
-            log.debug('{} {} {}'.format(device_type, source_name, self.source_device['name']))
+        if device_type == 'bluetooth' and self.source_device['type'] == 'bluetooth':
+            log.debug('{} {} {}'.format(device_type, source_name, self.source_device))
             if self.source_device['name'] and source_name != self.source_device['name']:
-                log.info('Disconnecting bluetooth device: {}'.format(self.source_device['name']))
-                execute_managed(['bluetoothctl', 'disconnect', self.source_device['mac']])
+                self.bth.disconnect_device(self.source_device)
         
         if not isinstance(device, BluetoothDevice):
             log.debug('Setting the source device: {}'.format(source_name))
@@ -171,15 +161,10 @@ class DeviceControl():
     def update_devices(self):
         try:
             self.bluetooth_devices.clear()
-            bluetoothctl =  execute(['bluetoothctl', 'devices', 'Connected'])
-            for line in read_stdout(bluetoothctl):
-                match = re.match(r'^Device\s(?P<mac_address>.*?)\s(?P<device>.*?)$', line)
-                if match:
-                    mac_address = match.group('mac_address')
-                    device = match.group('device')
-                    
-                    log.debug('Found bluetooth device: {} ({})'.format(mac_address, device))
-                    self.bluetooth_devices[mac_address] = device
+            bth = Bluetooth()
+            for mac_address, device in bth.get_connected_devices():
+                log.debug('Found bluetooth device: {} ({})'.format(mac_address, device))
+                self.bluetooth_devices[mac_address] = device
             
             self.sinks.clear()
             for sink in self.pa.sink_list():
@@ -210,49 +195,6 @@ class DeviceControl():
                 
         except Exception as e:
             log.exception('Failed to update PulseAudio devices:')
-        
-    def enforce_resolution(self):
-        if self.environment == 'desktop':
-            resolution = self.config.general['resolution']
-            display_config = self._get_display_config(resolution)
-          
-            if len(display_config['resolutions']) == 0:
-                log.warning('There is currently no display connected: {}'.format(display_config))  
-            elif display_config['current_resolution'] == max(display_config['resolutions']):
-                log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
-            else:
-                log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
-                randr = execute_managed([
-                    'wlr-randr', '--output', display_config['device'], 
-                    '--mode', max(display_config['resolutions'])
-                    ])
-            
-    def kill_prior_instances(self):
-        app_name = os.path.basename(os.path.abspath(__file__))
-        pgrep = execute(['pgrep', '--list-full', 'python3'])
-        for line in read_stdout(pgrep):
-            log.debug('Identified process: {}'.format(line))
-            match = re.match(r'^(?P<pid>\d+)\s(?P<process>.*?)\s(?P<command>.*?)$', line)
-            if match:
-                pid     = match.group('pid')
-                process = match.group('process')
-                command = match.group('command')
-                
-                if process.endswith('python3') and command.endswith(app_name):
-                    log.info('Killing process {} ({})'.format(process, line))
-                    execute_managed(['sudo', 'kill', pid])
-                    break
-                    
-        # processes = [
-        #     'projectMSDL'
-        #     ]
-        
-        # for process in processes:
-        #     pgrep = execute(['pgrep', '-f', process])
-        #     for line in read_stdout(pgrep):
-        #         log.info('Killing process {} ({})'.format(process, line))
-        #         execute_managed(['sudo', 'killall',  process])
-        #         break
             
     def unload_loopback_modules(self):
         for module in self.pa.module_list():
@@ -331,8 +273,7 @@ class DeviceControl():
             if self.source_device['name'] != device_name and devices_connected == 0:
                 device = BluetoothDevice(device_name, mac_address)
                 self._control_source_device(device_name, None, device, 'bluetooth')
-                
-            devices_connected += 1
+                devices_connected += 1
                 
         for source_name, device in self.sources.items():
             source_channels = len(device.volume.values)
@@ -378,8 +319,8 @@ class DeviceControl():
     def control(self):
         while not self.thread_event.is_set():
             try:
-                if self.config.general['projectm_enabled']:
-                    self.enforce_resolution()
+                if self.display_ctrl and self.config.general['projectm_enabled']:
+                    self.display_ctrl.enforce_resolution()
                     
                 self.update_devices()
                 self.control_devices()
@@ -402,139 +343,6 @@ class DeviceControl():
         self.thread_event.set()
         self.thread.join()
         self.pa.close()
-
-class ProjectMWrapper():
-    def __init__(self, config, control):       
-        self.config = config
-        self.control = control
-        
-        self.projectm_path = self.config.projectm['path']
-        self.projectm_process = None
-        
-        config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
-        self.projectm_config = Config(config_path, config_header='[projectm]')
-        
-        self.threads = list()
-        self.thread_event = Event()
-        
-        self.preset_start = 0
-        self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
-        self.preset_display_duration = self.projectm_config.projectm['projectm.displayduration']
-        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace(
-            '${application.dir}', self.projectm_path
-            )
-        self.preset_screenshot_index = 0
-        self.preset_screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
-        if not os.path.exists(self.preset_screenshot_path):
-            os.makedirs(self.preset_screenshot_path)
-            
-    def _take_screenshot(self, preset):
-        preset_name = os.path.splitext(preset)[0]
-        preset_name_filtered = preset_name.split(' ', 1)[1]
-        preset_screenshot_name = preset_name_filtered + '.png'
-        if not preset_screenshot_name in os.listdir(self.preset_screenshot_path):
-            if self.preset_screenshot_index > 0:
-                time.sleep(self.projectm_config.projectm['projectm.transitionduration'])
-                log.info('Taking a screenshot of {0}'.format(preset))
-                screenshot_path = os.path.join(self.preset_screenshot_path, preset_screenshot_name)
-                execute_managed(['grim', screenshot_path])
-                            
-            self.preset_screenshot_index += 1
-                    
-    def _monitor_output(self):
-        preset_regex = r'^INFO: Displaying preset: (?P<name>.*)$'
-        for line in read_stderr(self.projectm_process):
-            log.debug('ProjectM Output: {0}'.format(line))
-            
-            try:
-                match = re.match(preset_regex, line, re.I)
-                if match:
-                    preset = match.group('name').rsplit('/', 1)[1]
-                
-                    log.info('Currently displaying preset: {0}'.format(preset))
-                    self.preset_start = time.time()
-                
-                    # Take a preview screenshot
-                    if self.control.environment == 'desktop':
-                        if self.config.projectm['screenshots_enabled'] and self.control.source_device:
-                            self._take_screenshot(preset)
-            except:
-                log.exception('Failed to process output')
-            
-    def _monitor_hang(self):
-        while not self.thread_event.is_set():
-            if self.preset_start == 0:
-                continue
-            else:
-                duration = time.time() - self.preset_start
-                if duration >= (self.preset_display_duration + 5):
-                    log.warning('The visualization has not changed in the alloted timeout!')
-                    log.info('Manually transitioning to the next visualization...')
-                    xautomation_process = execute(['xte'])
-                    xautomation_process.communicate(input=b'key n\n')
-                
-            time.sleep(1)
-            
-    def _manage_playlist(self):
-        if self.config.projectm['advanced_shuffle'] == True:
-            log.info('Performing smart randomization on presets...')
-            presets = list()
-            for root, dirs, files in os.walk(self.preset_path):
-                for name in files:
-                    preset_path = os.path.join(root, name)
-                    if not preset_path in presets:
-                        presets.append(preset_path)
-                        
-            random.shuffle(presets)
-            index = 0
-            for preset in presets:
-                index += 1
-                idx_pad = format(index, '06')
-                preset_root, preset_name = preset.rsplit('/', 1)
-                if not re.match(r'^\d{6}\s.*?\.milk', preset_name, re.I):
-                    preset_name_stripped = preset_name
-                else:
-                    preset_name_stripped = preset_name.split(' ', 1)[1]
-                
-                dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
-                log.debug('Renaming {0} to {1}'.format(preset, dst))
-                try:
-                    os.rename(preset, dst)
-                except Exception as e:
-                    log.error('Failed to rename preset {0}: {1}'.format(preset, e))
-                
-        
-    def execute(self, beatSensitivity=2.0):   
-        self._manage_playlist()
-    
-        app_path = os.path.join(APP_ROOT, 'projectMSDL')
-        self.projectm_process = execute(
-            [app_path, '--beatSensitivity=' + str(beatSensitivity)]
-            )
-        
-        # Start thread to monitor preset output to ensure
-        # there are no hangs (TODO: Report to ProjectM)
-        monitor_thread = Thread(
-            target=self._monitor_output,
-            )
-        monitor_thread.daemon = True
-        monitor_thread.start()
-        self.threads.append(monitor_thread)
-        
-        # Start hang thread to trigger the next preset 
-        # in the event of a hang
-        hang_thread = Thread(
-            target=self._monitor_hang,
-            )
-        hang_thread.daemon = True
-        hang_thread.start()
-        self.threads.append(hang_thread)
-        
-    def stop(self):
-        for thread in self.threads:
-            thread.join()
-            
-        self.projectm_process.kill()
         
 
 def main():
@@ -556,7 +364,7 @@ def main():
     
     if config.general['projectm_enabled']:
         log.info('Initializing projectMSDL Wrapper...')
-        projectm_wrapper = ProjectMWrapper(config, device_ctrl)
+        projectm_wrapper = ProjectM(config, device_ctrl)
     
         log.info('Executing ProjectMSDL and monitorring presets for hangs...')
         projectm_wrapper.execute()
