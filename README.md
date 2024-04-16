@@ -37,7 +37,7 @@ Raspberry Pi OS Bookworm (Desktop or Lite) (wayland or x11)
 - [Raspberry Pi OS 64-bit Desktop](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-03-13/2024-03-12-raspios-bookworm-arm64.img.xz)
 - [Raspberry Pi OS 64-bit Lite](https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2024-03-13/2024-03-12-raspios-bookworm-arm64-lite.img.xz)
 
-***Note:** For reasons unknown, The latest build of Bookworm has reduced in performence when handling presets.  The root cause is undder investigation.  It is advised to use the images provided from the RPI OS archive*
+***Note:** For reasons unknown, The latest build of Bookworm has reduced in performance when handling presets.  The root cause is under investigation.  It is advised to use the images provided from the RPI OS archive*
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -136,7 +136,7 @@ sudo cp -r ~/frontend-sdl2/build/src/* /opt/ProjectMSDL/
 sudo chmod 777 -R /opt/ProjectMSDL
 ```
 
-Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configuratios to the below:
+Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configurations to the below:
 ```
 window.fullscreen = true
 projectM.meshX = 64
@@ -311,10 +311,10 @@ systemctl --user enable projectm
 ```
 </details>
 
-## Optional Componenets
+## Optional Components
 
 <details>
-<summary><b>Setup A2DP bluetooth audio receiver </b></summary>
+<summary><b>Setup A2DP Bluetooth audio receiver </b></summary>
 </br>
 
 Acquire all the necessary dependecies
@@ -384,7 +384,7 @@ KillSignal=SIGUSR1
 WantedBy=bluetooth.target
 ```
 
-### Enable and start the bluetooth service
+### Enable and start the Bluetooth service
 ```
 sudo systemctl enable bt-agent
 sudo systemctl start bt-agent
