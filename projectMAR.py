@@ -371,9 +371,14 @@ def main():
     
     while not sm.exit:
         try:
-            if config.general['projectm_enabled'] and projectm_wrapper.projectm_process.poll() != None:
-                log.warning('ProjectM has terminated!')
-                break
+            if config.general['projectm_enabled']:
+                if projectm_wrapper.projectm_process.poll() != None:
+                    log.warning('ProjectM has terminated!')
+                    projectm_wrapper.thread_event.set()
+                    projectm_wrapper.stop()
+                    
+                    log.info('Executing ProjectMSDL and monitorring presets for hangs...')
+                    projectm_wrapper.execute()
             
             time.sleep(1)
         except KeyboardInterrupt:
