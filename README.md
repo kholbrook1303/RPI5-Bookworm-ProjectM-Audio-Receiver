@@ -19,28 +19,6 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 ## Video Preview
 [![ProjectMAR Video 1](https://img.youtube.com/vi/8kj53j3EDec/0.jpg)](https://www.youtube.com/watch?v=8kj53j3EDec)
 
-# Index
-**Requirements:**
-- [Hardware Requirements](#hardware-requirements)
-- [Software Requirements](#software-requirements)
-
-**Prepare the Raspberry Pi:**
-- [Initial Setup](#initial-setup)
-
-**Build the ProjectM dependencies:**
-- [Building libprojectM](#building-libprojectm)
-- [Building libPico-dev](#building-libpico-dev)
-- [Building ProjectM SDL2 Frontend](#building-projectm-sdl2-frontend)
-- [Setup textures and presets](#setup-textures-and-presets)
-
-**Setup ProjectM Audio Receiver:**
-- [Setup ProjectM Audio Receiver](#setup-projectm-audio-receiver)
-- [Create startup entry](#create-startup-entry)
-
-**Add optional components:**
-- [Setup A2DP bluetooth audio receiver](#setup-a2dp-bluetooth-audio-receiver) (Optional)
-- [Setup AirPlay audio receiver](#setup-airplay-receiver) (Optional)
-
 ## Hardware Requirements:
 
 - Raspberry Pi 5 - 8GB
@@ -55,10 +33,11 @@ Originally the intention was to add a video signal to the Phono input of my Mara
     - USB Line in/Aux
 
 ## Software Requirements:
-```
-Raspberry Pi OS Bookworm (Desktop Mode)
-```
-***Note:** For reasons unknown (Possibly even SD Card performance), Lite is worse in performance than desktop and requires auto login with autostart mechanism.  Further testing is required to complete this.*
+Raspberry Pi OS Bookworm (Desktop or Lite) (wayland or x11)
+- [Raspberry Pi OS 64-bit Desktop](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-03-13/2024-03-12-raspios-bookworm-arm64.img.xz)
+- [Raspberry Pi OS 64-bit Lite](https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2024-03-13/2024-03-12-raspios-bookworm-arm64-lite.img.xz)
+
+***Note:** For reasons unknown, The latest build of Bookworm has reduced in performance when handling presets.  The root cause is under investigation.  It is advised to use the images provided from the RPI OS archive*
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -69,19 +48,18 @@ sudo apt update
 sudo apt upgrade
 ```
 
-## Building libprojectM 
-* It is advised to follow the most recent build steps from https://github.com/projectM-visualizer/projectm/wiki/Building-libprojectM*
+## Building ProjectM and Dependencies
+It is advised to follow the most recent build steps from:
+- https://github.com/projectM-visualizer/projectm/wiki/Building-libprojectM*
+- https://github.com/projectM-visualizer/frontend-sdl2*
+
+<details>
+<summary><b>Building libprojectM</b></summary>
 
 ### Install the build tools and dependencies
 Get the mandatory packages:
 ```
 sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git libsdl2-dev
-```
-
-Install additional features:
-```
-sudo apt install libsdl2-dev # for building the integrated developer test UI
-sudo apt install llvm-dev # for using the experimental LLVM Jit
 ```
 
 ### Download the projectM sources
@@ -103,6 +81,11 @@ cmake -DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/lo
 cmake --build . --parallel && sudo cmake --build . --target install
 ```
 
+</details>
+
+<details>
+<summary><b>Building libPico</b></summary>
+
 ## Building libPico-dev
 Because the current repository contains a problematic version of libPico-dev, we must build from source.
 
@@ -122,6 +105,12 @@ You will have to move the libs for projectMSDL frontend to work (Needs further i
 ```
 sudo cp /usr/local/lib/libPoco* /usr/lib/
 ```
+
+</details>
+
+<details>
+<summary><b>Building frontend-sdl2</b></summary>
+
 ## Building ProjectM SDL2 Frontend
 * It is advised to follow the most recent build steps from https://github.com/projectM-visualizer/frontend-sdl2*
 
@@ -147,12 +136,17 @@ sudo cp -r ~/frontend-sdl2/build/src/* /opt/ProjectMSDL/
 sudo chmod 777 -R /opt/ProjectMSDL
 ```
 
-Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configuratios to the below:
+Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configurations to the below:
 ```
 window.fullscreen = true
 projectM.meshX = 64
 projectM.meshY = 32
 ```
+
+</details>
+
+<details>
+<summary><b>ProjectM Presets and Textures</b></summary>
 
 ## Setup textures and presets
 The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.
@@ -173,17 +167,26 @@ Presets:
   collection shipped with Milkdrop and Winamp.
 - [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
 
+</details>
 
 ## Setup ProjectM Audio Receiver
-### Install dependencies
-xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang
 
-Additionally PulseAudio may need to be installed (Currently audio control is managed to PulseAudio.  There are future plans make this optional)
+<details>
+<summary><b>Install dependencies</b></summary>
+<br/>
+
+xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang.  Additionally PulseAudio may need to be installed (Currently audio control is managed to PulseAudio.  There are future plans make this optional)
+
 ```
 sudo apt install xautomation pulseaudio
 ```
 
-### Set OpenGL version globally.
+</details>
+
+<details>
+<summary><b>Set OpenGL version globally</b></summary>
+</br>
+
 First open the '/etc/environment' file to set environment variables
 ```
 sudo nano /etc/environment
@@ -196,7 +199,13 @@ MESA_GL_VERSION_OVERRIDE=4.5
 
 Reboot
 
-### Download the ProjectM Audio Receiver sources
+</details>
+
+<details>
+<summary><b>Download the ProjectM Audio Receiver sources</b></summary>
+</br>
+
+Pull the sources from Github
 ```
 cd ~
 git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git
@@ -206,21 +215,30 @@ Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
 cp -r ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
 ```
+</details>
 
-### Setup python venv
+<details>
+<summary><b>Setup Python venv and dependencies</b></summary>
+</br>
+
+Install the virtual environment
 ```
 cd /opt/ProjectMSDL/
 python3 -m venv env
 ```
 
-### Install all Python dependencies
+Install all Python dependencies
 ```
 /opt/ProjectMSDL/env/bin/python3 -m pip install -r requirements.txt
 ```
+</details>
 
-### Setup the ProjectM Audio Receiver configuration
+<details>
+<summary><b>Configure ProjectM Audio Receiver</b></summary>
+</br>
+
 Select the audio receiver mode.  Automatic will handle connected devices without any user configuration
-Manual will allow you to be more granular with your devices
+Manual will allow you to be more granular with your devices (As well as switch between mic and aux devices)
 ```
 ar_mode=manual
 ```
@@ -251,9 +269,7 @@ If all is well close ProjectMSDL
 alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```
 
-## Create startup entry
-
-### RPI OS Desktop Instructions
+#### RPI OS Desktop with Wayland Display Instructions:
 For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
 
 if using the Desktop version, edit the wayfire.ini file to include the startup entry:
@@ -262,8 +278,8 @@ if using the Desktop version, edit the wayfire.ini file to include the startup e
 par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
-### RPI OS Lite Instructions
-If using the headless version, create a user service to start the application and enable autologon
+#### RPI Desktop OS with X11 Display or RPI Lite OS Instructions:
+Create a user service to start the application and enable autologon if using the lite version of RPI OS
 
 Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
 ```
@@ -293,8 +309,14 @@ Enable the service
 ```
 systemctl --user enable projectm
 ```
+</details>
 
-## Setup A2DP bluetooth audio receiver (Optional)
+## Optional Components
+
+<details>
+<summary><b>Setup A2DP Bluetooth audio receiver </b></summary>
+</br>
+
 Acquire all the necessary dependecies
 ```
 sudo apt-get install pulseaudio-module-bluetooth
@@ -362,15 +384,17 @@ KillSignal=SIGUSR1
 WantedBy=bluetooth.target
 ```
 
-### Enable and start the bluetooth service
+### Enable and start the Bluetooth service
 ```
 sudo systemctl enable bt-agent
 sudo systemctl start bt-agent
 ```
+</details>
 
-## Setup AirPlay receiver (Optional)
-
-### Setup and build Shairport Sync
+<details>
+<summary><b>Setup AirPlay receiver</b></summary>
+</br>
+Setup and build Shairport Sync
 * It is advised to follow the most recent build steps from https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md*
 
 Install required dependencies
@@ -414,14 +438,14 @@ sudo systemctl start nqptp
 
 ### Add a startup entry to run shairport-sync as a daemon
 
-### RPI OS Desktop Instructions
+#### RPI OS Desktop with Wayland Display Instructions:
 Edit the wayfire.ini file and add shairport-sync as an autostart entry:
 ```
 shairport = /usr/local/bin/shairport-sync
 ```
 
-### RPI OS Lite Instructions
-If using the headless version, create a user service to start the application
+#### RPI Desktop OS with X11 Display or RPI Lite OS Instructions:
+If using the lite version, create a user service to start the application
 
 Create a service by running
 ```
@@ -448,3 +472,4 @@ Enable the service
 systemctl --user enable shairport
 systemctl --user start shairport
 ```
+</details>
