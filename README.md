@@ -149,11 +149,16 @@ projectM.meshY = 32
 <summary><b>ProjectM Presets and Textures</b></summary>
 
 ## Setup textures and presets
-The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.
+The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.  The projectM library does not ship with any presets or textures so you want to grab them and deploy them:
 
-The projectM library does not ship with any presets or textures so you want to grab them and deploy them:
 ***Note:** I am currently hand selecting presets that are not only appealing and mostly reactive, but will play seamlessly on the Raspberry Pi.  This will available in the coming weeks.*
 
+### Presets and Textures for the Raspberry Pi 5:
+*Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
+
+Textures / Presets - https://github.com/mickabrig7/projectM-presets-rpi5.git
+
+### General Presets and Textures:
 Textures:
 - [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
   use with _any_ preset pack!
