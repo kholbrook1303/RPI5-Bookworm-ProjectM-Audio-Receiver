@@ -34,10 +34,8 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Software Requirements:
 Raspberry Pi OS Bookworm (Desktop or Lite) (wayland or x11)
-- [Raspberry Pi OS 64-bit Desktop](https://downloads.raspberrypi.com/raspios_arm64/images/raspios_arm64-2024-03-13/2024-03-12-raspios-bookworm-arm64.img.xz)
-- [Raspberry Pi OS 64-bit Lite](https://downloads.raspberrypi.com/raspios_lite_arm64/images/raspios_lite_arm64-2024-03-13/2024-03-12-raspios-bookworm-arm64-lite.img.xz)
 
-***Note:** For reasons unknown, The latest build of Bookworm has reduced in performance when handling presets.  The root cause is under investigation.  It is advised to use the images provided from the RPI OS archive*
+***Note:** For reasons unknown, The latest build of Bookworm has reduced in performance when handling presets.  The root cause is under investigation.*
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
