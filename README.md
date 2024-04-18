@@ -275,20 +275,8 @@ if using the Desktop version, edit the wayfire.ini file to include the startup e
 par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
-#### RPI Desktop OS with X11 Display or RPI Lite OS Instructions:
-Create a user service to start the application and enable autologon if using the lite version of RPI OS
-
-Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
-```
-sudo raspi-config
-```
-
-Create a service by running
-```
-sudo nano /etc/systemd/user/projectm.service
-```
-
-Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
+#### RPI Desktop OS with X11 Display and RPI Lite OS Instructions:
+Create a user service to start the application.  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
 ```
 [Unit]
 Description=ProjectMAR
@@ -306,6 +294,30 @@ Enable the service
 ```
 systemctl --user enable projectm
 ```
+
+#### RPI Lite OS Instructions:
+Enable autologon if using the lite version of RPI OS
+
+Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
+```
+sudo raspi-config
+```
+
+Enfore a resolution for Raspberry Pi OS Lite.  Edit the boot cmdline.txt.
+```
+sudo nano /boot/firmware/cmdline.txt
+```
+
+Add the device, resolution, and refresh rate to the end of the cmdline.txt
+```
+video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
+```
+
+Create a service by running
+```
+sudo nano /etc/systemd/user/projectm.service
+```
+
 </details>
 
 ## Optional Components
