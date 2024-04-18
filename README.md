@@ -33,9 +33,9 @@ Originally the intention was to add a video signal to the Phono input of my Mara
     - USB Line in/Aux
 
 ## Software Requirements:
-Raspberry Pi OS Bookworm (Desktop or Lite) (wayland or x11)
-
-***Note:** For reasons unknown, The latest build of Bookworm has reduced in performance when handling presets.  The root cause is under investigation.*
+- Raspberry Pi OS Bookworm Desktop with Wayland Display
+- Raspberry Pi OS Bookworm Desktop with Wayland X11
+- Raspberry Pi OS Bookworm Lite
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
@@ -47,7 +47,7 @@ sudo apt upgrade
 ```
 
 ## Building ProjectM and Dependencies
-It is advised to follow the most recent build steps from:
+It is advised to follow the most recent build steps from the source.  Additionally please only use the releases tested here:
 - https://github.com/projectM-visualizer/projectm/wiki/Building-libprojectM*
 - https://github.com/projectM-visualizer/frontend-sdl2*
 
@@ -60,19 +60,13 @@ Get the mandatory packages:
 sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git libsdl2-dev
 ```
 
-### Download the projectM sources
-Clone the latest branch and update external dependencies
+### Download and extract the source package
+The current build this project uses is 4.0.0.  There is currently a bug in later releases that impact performance on the Raspberry Pi.
 ```
-git clone https://github.com/projectM-visualizer/projectm.git ~/ProjectM/
-cd ~/ProjectM/
-git fetch --all --tags
-git submodule init
-git submodule update
-```
-
-### Build and install projectM
-Configure the project
-```
+cd ~
+wget https://github.com/projectM-visualizer/projectm/archive/refs/tags/v4.0.0.tar.gz
+tar xf v4.0.0.tar.gz
+cd ~/projectm-4.0.0/
 mkdir build
 cd build
 cmake -DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
