@@ -337,11 +337,10 @@ sudo systemctl restart bluetooth
 ```
 
 ```
-bluetoothctl
-[bluetooth]# power on
-[bluetooth]# discoverable on
-[bluetooth]# pairable on
-[bluetooth]# agent on
+bluetoothctl power on
+bluetoothctl discoverable on
+bluetoothctl pairable on
+bluetoothctl agent on
 ```
 
 Reboot
