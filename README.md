@@ -33,9 +33,10 @@ Originally the intention was to add a video signal to the Phono input of my Mara
     - USB Line in/Aux
 
 ## Software Requirements:
-- Raspberry Pi OS Bookworm Desktop with Wayland Display
-- Raspberry Pi OS Bookworm Desktop with Wayland X11
-- Raspberry Pi OS Bookworm Lite
+- Raspberry Pi OS Bookworm:
+  - Desktop with Wayland Display
+  - Desktop with X11
+  - Lite
 
 ## Initial Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
