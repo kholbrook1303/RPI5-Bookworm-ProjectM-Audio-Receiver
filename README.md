@@ -78,7 +78,7 @@ cmake --build . --parallel && sudo cmake --build . --target install
 <details>
 <summary><b>Building libPico</b></summary>
 
-## Building libPico-dev
+### Download, build and install libPico-dev
 Because the current repository contains a problematic version of libPico-dev, we must build from source.
 
 Obtain a tested working build of libPico-dev and build.  ***Note:** This is going to take some time to install*
@@ -102,9 +102,6 @@ sudo cp /usr/local/lib/libPoco* /usr/lib/
 
 <details>
 <summary><b>Building frontend-sdl2</b></summary>
-
-## Building ProjectM SDL2 Frontend
-* It is advised to follow the most recent build steps from https://github.com/projectM-visualizer/frontend-sdl2*
 
 ### Download the SDL2 Frontend sources
 ```
@@ -276,6 +273,12 @@ par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
 ```
 
 #### RPI Desktop OS with X11 Display and RPI Lite OS Instructions:
+
+Create a service by running
+```
+sudo nano /etc/systemd/user/projectm.service
+```
+
 Create a user service to start the application.  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
 ```
 [Unit]
@@ -311,11 +314,6 @@ sudo nano /boot/firmware/cmdline.txt
 Add the device, resolution, and refresh rate to the end of the cmdline.txt
 ```
 video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
-```
-
-Create a service by running
-```
-sudo nano /etc/systemd/user/projectm.service
 ```
 
 </details>
