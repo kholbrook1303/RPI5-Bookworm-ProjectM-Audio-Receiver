@@ -24,9 +24,9 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 - Raspberry Pi 5 - 8GB
 - 5v/5A USB-C Power Supply
 - SanDisk 32GB Extreme PRO microSD
-- Case with active cooling (The following are my recommendations in order of preference)
-    - Argon ONE V3 Case for Raspberry Pi 5 w/ Argon BLSTR DAC with Ground Loop Isolator (This is going to get costly and is not necessary for basic audio)
+- Case with active cooling (The following are my recommendations)
     - Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan
+    - Argon ONE V3 Case for Raspberry Pi 5 w/ Argon BLSTR DAC with Ground Loop Isolator
 - HDMI Cable with Micro HDMI adapter or Micro HDMI to HDMI cable
 - Input device of your choosing (You can always use built in Bluetooth; just know there is potential for interference with built in card)
     - USB Microphone
@@ -319,7 +319,7 @@ video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
 
 </details>
 
-## Optional Components
+## Optional Features
 
 <details>
 <summary><b>Setup A2DP Bluetooth audio receiver </b></summary>
