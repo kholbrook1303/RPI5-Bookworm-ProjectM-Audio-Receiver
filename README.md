@@ -48,9 +48,7 @@ sudo apt upgrade
 ```
 
 ## Building ProjectM and Dependencies
-It is advised to follow the most recent build steps from the source.  Additionally please only use the releases tested here:
-- https://github.com/projectM-visualizer/projectm/wiki/Building-libprojectM*
-- https://github.com/projectM-visualizer/frontend-sdl2*
+It is advised to only use the releases tested here as they are version controlled to ensure a seamless experience.
 
 <details>
 <summary><b>Building libprojectM</b></summary>
@@ -58,7 +56,7 @@ It is advised to follow the most recent build steps from the source.  Additional
 ### Install the build tools and dependencies
 Get the mandatory packages:
 ```
-sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git libsdl2-dev
+sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
 ```
 
 ### Download and extract the source package
@@ -104,25 +102,35 @@ sudo cp /usr/local/lib/libPoco* /usr/lib/
 <details>
 <summary><b>Building frontend-sdl2</b></summary>
 
+### Install the dependencies
+Get the mandatory packages:
+```
+sudo apt install libsdl2-dev libfreetype-dev cmake
+```
+
 ### Download the SDL2 Frontend sources
 ```
 cd ~
-git clone https://github.com/projectM-visualizer/frontend-sdl2.git
+git clone https://github.com/kholbrook1303/frontend-sdl2.git
 ```
 
 ### Build and install SDL2 Frontend
+
 ```
 cd frontend-sdl2/
-mkdir build
-cd build
-cmake ..
+git submodule init
+git submodule update
+mkdir cmake-build
+cmake -S . -B cmake-build -DCMAKE_BUILD_TYPE=Release
+cmake --build cmake-build --config Release
+cd cmake-build
 make
 ```
 
 Copy build application to standard directory
 ```
 sudo mkdir /opt/ProjectMSDL
-sudo cp -r ~/frontend-sdl2/build/src/* /opt/ProjectMSDL/
+sudo cp -r ~/frontend-sdl2/cmake-build/src/* /opt/ProjectMSDL/
 sudo chmod 777 -R /opt/ProjectMSDL
 ```
 
@@ -132,6 +140,18 @@ window.fullscreen = true
 projectM.meshX = 64
 projectM.meshY = 32
 ```
+
+Open the '/etc/environment' file to set environment variables
+```
+sudo nano /etc/environment
+```
+
+Add the following entry
+```
+MESA_GL_VERSION_OVERRIDE=4.5
+```
+
+Reboot
 
 </details>
 
@@ -172,23 +192,13 @@ The ProjectM Audio Receiver manages your default sources/sinks and will route au
 <summary><b>Setup dependencies</b></summary>
 <br/>
 
-xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang.  Additionally PulseAudio may need to be installed (Currently audio control is managed to PulseAudio)
+xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang.
 
 ```
 sudo apt install xautomation pulseaudio
 ```
 
-Open the '/etc/environment' file to set environment variables
-```
-sudo nano /etc/environment
-```
-
-Add the following entry
-```
-MESA_GL_VERSION_OVERRIDE=4.5
-```
-
-Reboot
+Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - Pipewire (Reboot if you made any changes)
 
 </details>
 
