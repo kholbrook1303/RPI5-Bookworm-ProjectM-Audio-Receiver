@@ -165,24 +165,20 @@ Presets:
 </details>
 
 ## Setup ProjectM Audio Receiver
+If you prefer to manage audio devices yourself, there is no need for the ProjectM Audio Receiver portion of this guide.  
+The ProjectM Audio Receiver manages your default sources/sinks and will route audio through loopback when necessary.  
 
 <details>
-<summary><b>Install dependencies</b></summary>
+<summary><b>Setup dependencies</b></summary>
 <br/>
 
-xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang.  Additionally PulseAudio may need to be installed (Currently audio control is managed to PulseAudio.  There are future plans make this optional)
+xautomation is currently used to persist preset shuffling in projectmWrapper.py as I have observed a bug causing it to hang.  Additionally PulseAudio may need to be installed (Currently audio control is managed to PulseAudio)
 
 ```
 sudo apt install xautomation pulseaudio
 ```
 
-</details>
-
-<details>
-<summary><b>Set OpenGL version globally</b></summary>
-</br>
-
-First open the '/etc/environment' file to set environment variables
+Open the '/etc/environment' file to set environment variables
 ```
 sudo nano /etc/environment
 ```
@@ -197,9 +193,9 @@ Reboot
 </details>
 
 <details>
-<summary><b>Download the ProjectM Audio Receiver sources</b></summary>
-</br>
+<summary><b>Download and setup ProjectM Audio Receiver from source</b></summary>
 
+### Obtain the latest source
 Pull the sources from Github
 ```
 cd ~
@@ -210,28 +206,21 @@ Copy the projectMAR bash script to the ProjectMSDL installation directory
 ```
 cp -r ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMSDL/
 ```
-</details>
 
-<details>
-<summary><b>Setup Python venv and dependencies</b></summary>
-</br>
-
+### Setup Python virtual environment
 Install the virtual environment
 ```
 cd /opt/ProjectMSDL/
 python3 -m venv env
 ```
 
+### Get all Python dependencies
 Install all Python dependencies
 ```
 /opt/ProjectMSDL/env/bin/python3 -m pip install -r requirements.txt
 ```
-</details>
 
-<details>
-<summary><b>Configure ProjectM Audio Receiver</b></summary>
-</br>
-
+### Configure ProjectM Audio Receiver
 Select the audio receiver mode.  Automatic will handle connected devices without any user configuration
 Manual will allow you to be more granular with your devices (As well as switch between mic and aux devices)
 ```
@@ -264,58 +253,75 @@ If all is well close ProjectMSDL
 alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```
 
-#### RPI OS Desktop with Wayland Display Instructions:
-For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
+## Environment Specific Instructions
 
-if using the Desktop version, edit the wayfire.ini file to include the startup entry:
-```
-[autostart]
-par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
-```
+  <details>
+  <summary><b>RPI OS Desktop with Wayland Display Instructions</b></summary>
+  
+  ### Setup the auto start on boot
 
-#### RPI Desktop OS with X11 Display and RPI Lite OS Instructions:
+  For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
 
-Create a service by running
-```
-sudo nano /etc/systemd/user/projectm.service
-```
+  if using the Desktop version, edit the wayfire.ini file to include the startup entry:
+  ```
+  [autostart]
+  par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+  ```
 
-Create a user service to start the application.  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
-```
-[Unit]
-Description=ProjectMAR
+  </details>
 
-[Service]
-Type=simple
-ExecStart=/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
-Restart=on-failure
+  <details>
+  <summary><b>RPI Desktop OS with X11 Display and RPI Lite OS Instructions</b></summary>
+  
+  ### Setup the auto start on boot
 
-[Install]
-WantedBy=default.target
-```
+  Create a service by running
+  ```
+  sudo nano /etc/systemd/user/projectm.service
+  ```
 
-Enable the service
-```
-systemctl --user enable projectm
-```
+  Create a user service to start the application.  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
+  ```
+  [Unit]
+  Description=ProjectMAR
 
-#### RPI Lite OS Instructions:
-Enable autologon if using the lite version of RPI OS
+  [Service]
+  Type=simple
+  ExecStart=/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+  Restart=on-failure
 
-Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
-```
-sudo raspi-config
-```
+  [Install]
+  WantedBy=default.target
+  ```
 
-Enfore a resolution for Raspberry Pi OS Lite.  Edit the boot cmdline.txt.
-```
-sudo nano /boot/firmware/cmdline.txt
-```
+  Enable the service
+  ```
+  systemctl --user enable projectm
+  ```
+  </details>
 
-Add the device, resolution, and refresh rate to the end of the cmdline.txt
-```
-video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
-```
+  <details>
+  <summary><b>RPI Lite OS Instructions</b></summary>
+ 
+  ### Setup the auto start on boot
+
+  Enable autologon if using the lite version of RPI OS
+
+  Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
+  ```
+  sudo raspi-config
+  ```
+
+  Enfore a resolution for Raspberry Pi OS Lite.  Edit the boot cmdline.txt.
+  ```
+  sudo nano /boot/firmware/cmdline.txt
+  ```
+
+  Add the device, resolution, and refresh rate to the end of the cmdline.txt
+  ```
+  video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
+  ```
+  </details>
 
 </details>
 
@@ -323,13 +329,15 @@ video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
 
 <details>
 <summary><b>Setup A2DP Bluetooth audio receiver </b></summary>
-</br>
+
+### Get Bluetooth dependencies
 
 Acquire all the necessary dependecies
 ```
 sudo apt-get install pulseaudio-module-bluetooth
 ```
 
+### Configure Bluetooth functionality
 Make the Pi permanently discoverable as an A2DP Sink.
 ```
 sudo nano /etc/bluetooth/main.conf
@@ -372,6 +380,7 @@ Auto pairing / trusting / no PIN
 sudo apt-get install bluez-tools
 ```
 
+### Configure Bluetooth agent service
 ```
 sudo nano /etc/systemd/system/bt-agent.service
 ```
@@ -391,7 +400,7 @@ KillSignal=SIGUSR1
 WantedBy=bluetooth.target
 ```
 
-### Enable and start the Bluetooth service
+Enable and start the Bluetooth service
 ```
 sudo systemctl enable bt-agent
 sudo systemctl start bt-agent
@@ -400,10 +409,10 @@ sudo systemctl start bt-agent
 
 <details>
 <summary><b>Setup AirPlay receiver</b></summary>
-</br>
 Setup and build Shairport Sync
 * It is advised to follow the most recent build steps from https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md*
 
+### Get Shairport-Sync dependencies
 Install required dependencies
 ```
 sudo apt install --no-install-recommends build-essential git autoconf automake libtool libpulse-dev \
@@ -411,6 +420,7 @@ sudo apt install --no-install-recommends build-essential git autoconf automake l
     libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
 ```
 
+### Obtain the latest source
 Clone and build shairport-sync
 ```
 cd ~
@@ -443,40 +453,48 @@ sudo systemctl enable nqptp
 sudo systemctl start nqptp
 ```
 
-### Add a startup entry to run shairport-sync as a daemon
+## Environment Specific Instructions
 
-#### RPI OS Desktop with Wayland Display Instructions:
-Edit the wayfire.ini file and add shairport-sync as an autostart entry:
-```
-shairport = /usr/local/bin/shairport-sync
-```
+  <details>
+  <summary><b>RPI OS Desktop with Wayland Display Instructions</b></summary>
+ 
+  ### Setup the auto start on boot
+  Edit the wayfire.ini file and add shairport-sync as an autostart entry:
+  ```
+  shairport = /usr/local/bin/shairport-sync
+  ```
+  </details>
 
-#### RPI Desktop OS with X11 Display or RPI Lite OS Instructions:
-If using the lite version, create a user service to start the application
+  <details>
+  <summary><b>RPI Desktop OS with X11 Display or RPI Lite OS Instructions</b></summary>
+ 
+  ### Setup the auto start on boot
+  If using the lite version, create a user service to start the application
 
-Create a service by running
-```
-sudo nano /etc/systemd/user/shairport.service
-```
+  Create a service by running
+  ```
+  sudo nano /etc/systemd/user/shairport.service
+  ```
 
-Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
-```
-[Unit]
-Description=Shairport-Sync
+  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
+  ```
+  [Unit]
+  Description=Shairport-Sync
 
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/shairport-sync
-Restart=on-failure
-StandardOutput=file:%h/log_file
+  [Service]
+  Type=simple
+  ExecStart=/usr/local/bin/shairport-sync
+  Restart=on-failure
+  StandardOutput=file:%h/log_file
 
-[Install]
-WantedBy=default.target
-```
+  [Install]
+  WantedBy=default.target
+  ```
 
-Enable the service
-```
-systemctl --user enable shairport
-systemctl --user start shairport
-```
+  Enable the service
+  ```
+  systemctl --user enable shairport
+  systemctl --user start shairport
+  ```
+  </details>
 </details>
