@@ -266,47 +266,21 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ## Environment Specific Instructions
 
   <details>
-  <summary><b>RPI OS Desktop with Wayland Display Instructions</b></summary>
+  <summary><b>RPI OS Desktop Instructions</b></summary>
   
   ### Setup the auto start on boot
 
-  For Debian Bookworm they are now using Wayland so you will need to edit the ~/.config/wayfire.ini file to include ProjectM Audio Receiver
-
-  if using the Desktop version, edit the wayfire.ini file to include the startup entry:
+  Add ProjectMAR to autostart
   ```
-  [autostart]
-  par = /opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+  sudo nano /etc/xdg/autostart/projectm.desktop
   ```
 
-  </details>
-
-  <details>
-  <summary><b>RPI Desktop OS with X11 Display and RPI Lite OS Instructions</b></summary>
-  
-  ### Setup the auto start on boot
-
-  Create a service by running
+  Add the following configuration
   ```
-  sudo nano /etc/systemd/user/projectm.service
-  ```
-
-  Create a user service to start the application.  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
-  ```
-  [Unit]
-  Description=ProjectMAR
-
-  [Service]
-  Type=simple
-  ExecStart=/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
-  Restart=on-failure
-
-  [Install]
-  WantedBy=default.target
-  ```
-
-  Enable the service
-  ```
-  systemctl --user enable projectm
+  [Desktop Entry]
+  Name=ProjectMAR
+  Exec=/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+  Type=Application
   ```
   </details>
 
@@ -420,7 +394,8 @@ sudo systemctl start bt-agent
 <details>
 <summary><b>Setup AirPlay receiver</b></summary>
 Setup and build Shairport Sync
-* It is advised to follow the most recent build steps from https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md*
+
+* It is advised to follow the most recent build steps from https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md
 
 ### Get Shairport-Sync dependencies
 Install required dependencies
@@ -444,7 +419,7 @@ sudo make install
 ```
 
 ### Setup and build NQPTP
-* It is advised to follow the most recent build steps from https://github.com/mikebrady/nqptp*
+* It is advised to follow the most recent build steps from https://github.com/mikebrady/nqptp
 
 Clone and build nqptp
 ```
@@ -463,48 +438,77 @@ sudo systemctl enable nqptp
 sudo systemctl start nqptp
 ```
 
-## Environment Specific Instructions
+### Setup the auto start on boot
 
-  <details>
-  <summary><b>RPI OS Desktop with Wayland Display Instructions</b></summary>
- 
-  ### Setup the auto start on boot
-  Edit the wayfire.ini file and add shairport-sync as an autostart entry:
-  ```
-  shairport = /usr/local/bin/shairport-sync
-  ```
-  </details>
+Add Shairport to autostart
+```
+sudo nano /etc/xdg/autostart/shairport.desktop
+```
 
-  <details>
-  <summary><b>RPI Desktop OS with X11 Display or RPI Lite OS Instructions</b></summary>
- 
-  ### Setup the auto start on boot
-  If using the lite version, create a user service to start the application
+Add the following configuration
+```
+[Desktop Entry]
+Name=Shairport
+Exec=/usr/local/bin/shairport-sync
+Type=Application
+```
+</details>
 
-  Create a service by running
-  ```
-  sudo nano /etc/systemd/user/shairport.service
-  ```
+<details>
+<summary><b>Setup Plexamp Receiver</b></summary>
 
-  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
-  ```
-  [Unit]
-  Description=Shairport-Sync
+### Get PlexAmp and NodeJS
 
-  [Service]
-  Type=simple
-  ExecStart=/usr/local/bin/shairport-sync
-  Restart=on-failure
-  StandardOutput=file:%h/log_file
+```
+wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.11.0.tar.bz2
+tar -xvjf Plexamp-Linux-headless-v4.11.0.tar.bz2
+cd plexamp
+sudo apt-get install -y ca-certificates curl gnupg && sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+NODE_MAJOR=20
+echo deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main | sudo tee /etc/apt/sources.list.d/nodesource.list
+sudo apt-get update && sudo apt-get install -y nodejs
+```
 
-  [Install]
-  WantedBy=default.target
-  ```
+### Setup your Plexamp token
 
-  Enable the service
-  ```
-  systemctl --user enable shairport
-  systemctl --user start shairport
-  ```
-  </details>
+Initialize Plexamp for the first time
+```
+node ~/plexamp/js/index.js
+```
+
+Obtain your claim token.  In a seperate browser goto:
+https://plex.tv/claim
+
+Paste the claim code in the terminal window and proceed with naming your player
+
+### Setup Plexamp
+
+Launch Plexamp
+```
+node ~/plexamp/js/index.js
+```
+
+On a system with a web browser navigate to your Plexamp system
+```
+http://<RaspberryPi_IP>:32500
+```
+
+Login with your PlexPass credentials
+
+### Setup the auto start on boot
+
+Add Plexamp to autostart
+```
+sudo nano /etc/xdg/autostart/plexamp.desktop
+```
+
+Add the following configuration
+```
+[Desktop Entry]
+Name=Plexamp
+Exec=/usr/bin/node /home/<USERNAME>/plexamp/js/index.js
+Type=Application
+```
+
 </details>
