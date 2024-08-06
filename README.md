@@ -198,7 +198,7 @@ xautomation is currently used to persist preset shuffling in projectmWrapper.py 
 sudo apt install xautomation pulseaudio
 ```
 
-Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - Pipewire (Reboot if you made any changes)
+Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
 
 </details>
 
