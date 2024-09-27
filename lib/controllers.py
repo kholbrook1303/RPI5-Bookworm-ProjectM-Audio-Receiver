@@ -2,15 +2,221 @@ import logging
 import os
 import random
 import re
-from threading import Event, Thread
 import time
 
-from lib.abstracts import Wrapper
+from copy import deepcopy
+from pulsectl import Pulse, PulseVolumeInfo
+from threading import Event, Thread
+
+from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
 
 log = logging.getLogger()
 
-class ProjectM(Wrapper):
+class BluetoothDevice:
+    def __init__(self, device_name, mac_address):
+        self.name = device_name
+        self.description = None
+        self.mac_address = mac_address
+        self.index = None
+        self.active = False
+        self.device = 'bluetooth'
+        self.type = 'aux'
+        self.meta = None
+
+class PlexAmpDevice:
+    def __init__(self, device_name, index, meta):
+        self.name = device_name
+        self.description = None
+        self.index = index
+        self.active = False
+        self.device = 'plexamp'
+        self.type = 'aux'
+        self.meta = meta
+     
+# TODO: Get method to control shairport-sync
+class AirPlayDevice:
+    def __init__(self, device_name, index, meta):
+        self.name = device_name
+        self.description = None
+        self.index = index
+        self.active = False
+        self.device = 'airplay'
+        self.type = 'aux'
+        self.meta = meta
+
+class Audio(Controller):
+    def __init__(self):
+        super().__init__()
+
+        self.pulse = Pulse()
+
+        self.device_template = {
+            'cards':    dict(),
+            'modules':  dict(),
+            'sinks':    dict(),
+            'sources':  dict()
+            }
+
+    def get_module_arguments(self, module):
+        module_args = dict()
+        try:
+            for key,val in re.findall(r'([^\s=]*)=(.*?)(?:\s|$)', module.argument):
+                module_args[key] = val
+                    
+        except TypeError:
+            pass
+
+        return module_args
+
+    """Updates the current source/sink/modules"""
+    def get_active_devices(self, processes):
+        device_meta = deepcopy(self.device_template)
+
+        try:
+            bth = Bluetooth()
+            for mac_address, device_name in bth.get_connected_devices():
+                log.debug('Found bluetooth device: {} ({})'.format(mac_address, device_name))
+
+                source = BluetoothDevice(device_name, mac_address)
+                source.active = True
+                device_meta['sources'][device_name] = source
+            
+            alsa_cards = dict()
+            for sink in self.pulse.sink_list():
+                log.debug('Found sink device: {} {}'.format(sink.name, sink))
+                if sink.name == 'combined':
+                    log.debug('Sink device: {} is not supported'.format(sink.name))
+                    continue
+
+                sink_device = None
+                if 'Built-in Audio' in sink.description:
+                    sink_device = 'hdmi'
+                else:
+                    sink_device = 'external'
+
+                try:
+                    alsa_card = sink.proplist['alsa.card']
+                    alsa_name = sink.proplist['alsa.name']
+                    alsa_cards[alsa_card] = alsa_name
+                except:
+                    pass
+
+                sink.active = False
+                sink.device = sink_device
+                device_meta['sinks'][sink.name] = sink
+            
+            for source in self.pulse.source_list():
+                log.debug('Found source device: {} {}'.format(source.name, source))
+                if source.name.startswith('alsa_output'):
+                    log.debug('Source device: {} is not supported'.format(source.name))
+                    continue
+
+                if source.name == 'combined.monitor':
+                    log.debug('Source device: {} is not supported'.format(source.name))
+                    continue
+
+                source_type = None
+                if any('mic' in port.name or 'Microphone' in port.description for port in source.port_list):
+                    source_type = 'mic'
+                else:
+                    source_type = 'aux'
+
+                try:
+                    alsa_card = source.proplist['alsa.card']
+                    alsa_name = source.proplist['alsa.name']
+                    if alsa_cards.get(alsa_card):
+                        if alsa_cards[alsa_card] == alsa_name:
+                            # When using a input/output card the input will often be labeled as a mic.
+                            # Handle this as though it is an aux.  TODO: Make configurable
+                            if source_type == 'mic':
+                                source_type = 'aux'
+                except:
+                    pass
+
+                source.active = False
+                source.type = source_type
+                source.device = 'pa'
+                device_meta['sources'][source.name] = source
+
+            for sink_input in self.pulse.sink_input_list():
+                if not sink_input.proplist.get('application.process.id', False):
+                    continue
+
+                pid = sink_input.proplist['application.process.id']
+                if not processes.get(pid):
+                    print ('Unable to find pid {}'.format(pid))
+                    continue
+
+                sink_input_device = None
+                if '/usr/bin/node' in processes[pid]['COMMAND']:
+                    sink_input_device = PlexAmpDevice(sink_input.name, sink_input.index, sink_input)
+                elif '/usr/local/bin/shairport-sync' in processes[pid]['COMMAND']:
+                    sink_input_device = AirPlayDevice(sink_input.name, sink_input.index, sink_input)
+
+                if not sink_input_device:
+                    print ('Unable to identify a process for {}'.format(processes[pid]))
+                    continue
+
+                log.debug('Found source device: {} {}'.format(sink_input_device.type, sink_input))
+
+                sink_input_device.active = True
+                device_meta['sources'][sink_input.name] = sink_input_device
+            
+            for module in self.pulse.module_list():
+                log.debug('Found module device: {} {}'.format(module.name, module))
+                device_meta['modules'][module.name] = module
+                
+        except Exception as e:
+            log.exception('Failed to update PulseAudio devices:')
+
+        return device_meta
+
+    def set_sink_volume(self, device, sink_name, sink_channels, sink_volume):
+        sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
+        log.info('Setting sink {} volume to {}'.format(sink_name, sink_volume))
+        self.pulse.sink_volume_set(device.index, sink_volume)
+
+    def set_source_volume(self, device, source_name, source_channels, volume):
+        source_volume = PulseVolumeInfo(volume, source_channels)
+        log.info('Setting source {} volume to {}'.format(source_name, source_volume))
+        self.pulse.source_volume_set(device.index, source_volume)
+            
+    def unload_loopback_modules(self, sink_name=None, source_name=None):
+        for module in self.pulse.module_list():
+            if module.name == 'module-loopback':
+                try:
+                    module_args = self.get_module_arguments(module)
+                    if sink_name and module_args['sink'] == sink_name:
+                        self.pulse.module_unload(module.index)
+                    elif source_name and module_args['source'] == source_name:
+                        self.pulse.module_unload(module.index)
+
+                except TypeError:
+                    pass
+                except Exception:
+                    log.exception('Failed to unload module {} {}'.format(module.name, module.index))
+
+    def unload_combined_sink_modules(self):
+        for module in self.pulse.module_list():
+            log.debug(module.name)
+            if module.name == 'module-combine-sink':
+                try:
+                    log.info('Unloading combined sink {}'.format(module.name))
+                    self.pulse.module_unload(module.index)
+                    return True
+
+                except TypeError:
+                    pass
+                except Exception:
+                    log.exception('Failed to unload module {} {}'.format(module.name, module.index))
+
+        return False
+
+    def close(self):
+        self.pulse.close()
+
+class ProjectM(Controller):
     def __init__(self, config, control):
         super().__init__()
         
@@ -51,12 +257,12 @@ class ProjectM(Wrapper):
             self.preset_screenshot_index += 1
                     
     def _monitor_output(self):
-        preset_regex = r'^INFO: Displaying preset: (?P<name>.*)$'
+        preset_regex = r'Displaying preset: (?P<name>.*)$'
         for line in self._read_stderr(self.projectm_process):
             log.debug('ProjectM Output: {0}'.format(line))
             
             try:
-                match = re.match(preset_regex, line, re.I)
+                match = re.search(preset_regex, line, re.I)
                 if match:
                     preset = match.group('name').rsplit('/', 1)[1]
                 
@@ -145,7 +351,7 @@ class ProjectM(Wrapper):
             
         self.projectm_process.kill()
 
-class Device(Wrapper):
+class Device(Controller):
     def __init__(self):
         super().__init__()
         
@@ -169,7 +375,7 @@ class Device(Wrapper):
         log.info('Killing process {}...'.format(process_name))
         self._execute_managed(['sudo', 'killall',  process_name])
 
-class Bluetooth(Wrapper):
+class Bluetooth(Controller):
     def __init__(self):
         super().__init__()
         
@@ -183,12 +389,20 @@ class Bluetooth(Wrapper):
                 device = match.group('device')
                     
                 yield mac_address, device
+
+    def player(self, action):
+        log.info('Attempting to {} bluetooth audio'.format(action))
+        self._execute_managed(['bluetoothctl', 'player.{}'.format(action)])
+
+    def connect_device(self, source_device):
+        log.info('Connecting bluetooth device: {}'.format(source_device.name))
+        self._execute_managed(['bluetoothctl', 'connect', source_device.mac_address])
                 
     def disconnect_device(self, source_device):
-        log.info('Disconnecting bluetooth device: {}'.format(source_device['name']))
-        self._execute_managed(['bluetoothctl', 'disconnect', source_device['mac']])
+        log.info('Disconnecting bluetooth device: {}'.format(source_device.name))
+        self._execute_managed(['bluetoothctl', 'disconnect', source_device.mac_address])
 
-class XDisplay(Wrapper):
+class XDisplay(Controller):
     def __init__(self, resolution, environment):
         super().__init__()
         
@@ -248,7 +462,7 @@ class XDisplay(Wrapper):
                     ])
 
 
-class WaylandDisplay(Wrapper):
+class WaylandDisplay(Controller):
     def __init__(self, resolution, environment):
         super().__init__()
         

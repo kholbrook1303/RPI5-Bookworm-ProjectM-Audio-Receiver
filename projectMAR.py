@@ -1,18 +1,17 @@
 import logging
 import os
-import random
-import re
 import signal
+import subprocess
 import sys
 import time
 
-from pulsectl import Pulse, PulseVolumeInfo
-from subprocess import Popen, PIPE
+from copy import deepcopy
 from threading import Thread, Event
 
 from lib.config import Config, APP_ROOT
 from lib.log import log_init
-from lib.wrappers import Device, ProjectM, WaylandDisplay, XDisplay, Bluetooth
+from lib.controllers import AirPlayDevice, BluetoothDevice, PlexAmpDevice
+from lib.controllers import Audio, Bluetooth, ProjectM, WaylandDisplay, XDisplay
 
 log = logging.getLogger()
     
@@ -24,36 +23,23 @@ class SignalMonitor:
 
     def set_exit(self, signum, frame):
         self.exit = True
-        
-class BluetoothDevice:
-    def __init__(self, device_name, mac_address):
-        self.name = device_name
-        self.description = None
-        self.mac_address = mac_address
-        self.index = None
-     
-# TODO: Get method to control shairport-sync
-class AirPlayDevice:
-    def __init__(self, device_name):
-        self.name = device_name
-        self.description = None
-        self.index = None
             
 class DeviceControl():
     def __init__(self, config):
+            
+        self.audio                  = Audio()
+        self.bluetooth              = Bluetooth()
+        self.thread                 = None
+        self.thread_event           = Event()
         
-        self.config = config
-        
-        self.thread = None
-        self.thread_event = Event()
-        
-        self.sinks = dict()
-        self.sources = dict()
-        self.modules = dict()
-        self.bluetooth_devices = dict()
-        self.airplay_devices = dict()
-        
-        self.environment = self._get_environment()
+        self.config                 = config
+        self.audio_mode             = self.config.media_player['audio_mode']
+        self.allow_multiple_sinks   = self.config.media_player['allow_multiple_sinks']
+        self.devices                = deepcopy(self.audio.device_template)
+        self.environment            = self._get_environment()
+        self.processes              = self._get_processes()
+        self.sink_device            = None
+        self.source_device          = None
         
         self.display_ctrl = None
         if self.environment == 'desktop':
@@ -75,31 +61,6 @@ class DeviceControl():
                 self.environment
                 )
 
-        self.bth = Bluetooth()
-
-        self.source_device = {
-            'name': None,
-            'type': None,
-            'id': None,
-            'mac': None
-            }
-        
-        self.sink_device = None
-        
-        self.pa = Pulse('ProjectMAR')
-        self.audio_mode = self.config.media_player['audio_mode']
-        
-        self.priority_sinks = [
-            'hdmi'
-            ]
-        self.supported_sinks = [
-            'alsa_output'
-            ]
-        self.supported_sources = [
-            'alsa_input',
-            'bluez_source'
-            ]
-
     def _get_environment(self):
         with open('/boot/issue.txt', 'r') as infile:
             data = infile.read()
@@ -110,220 +71,186 @@ class DeviceControl():
                     return 'desktop'
                 
         return None
-        
-    def _clear_source_device(self):
-        for key in self.source_device.keys():
-            self.source_device[key] = None
+
+    def _get_processes(self):
+        process = subprocess.Popen(['ps', '-ax'], stdout=subprocess.PIPE)
+        stdout = process.stdout.readlines()
+        headers = [h for h in ' '.join(stdout[0].decode('UTF-8').strip().split()).split() if h]
+        raw_data = map(lambda s: s.decode('UTF-8').strip().split(None, len(headers) - 1), stdout[1:])
+        return {r[0]:dict(zip(headers, r)) for r in raw_data}
     
-    def _control_sink_device(self, sink_name, sink_channels, device, volume=1):
+    def _control_sink_device(self, sink_name, sink_channels, sink_device, sink_volume=.75):
         log.info('Identified a new sink device: {}'.format(sink_name))
-        self.sink_device = sink_name
-                    
-        sink_volume = PulseVolumeInfo(volume, sink_channels)
-        log.debug('Setting sink {} volume to {}'.format(sink_name, sink_volume))
-        self.pa.sink_volume_set(device.index, sink_volume)
+        self.audio.pulse.sink_default_set(sink_name)
+        self.audio.set_sink_volume(sink_device, sink_name, sink_channels, sink_volume)
                 
-    def _control_source_device(self, source_name, source_channels, device, device_type, volume=1):
-        log.info('Identified a new source {0} device: {1} ({2})'.format(
-            device_type,source_name,device.description
+    def _control_source_device(self, source_name, source_device, source_volume):
+        log.info('Identified a new {} {} source device: {} ({})'.format(
+            source_device.device, source_device.type, source_name, source_device.description
             ))
+
+        source_channels = None
+        try:
+            source_channels = len(source_device.volume.values)
+            if source_channels:
+                self.audio.set_source_volume(source_device, source_name, source_channels, source_volume)
+
+        except:
+            pass
         
-        if device_type == 'bluetooth' and self.source_device['type'] == 'bluetooth':
-            log.debug('{} {} {}'.format(device_type, source_name, self.source_device))
-            if self.source_device['name'] and source_name != self.source_device['name']:
-                self.bth.disconnect_device(self.source_device)
-        
-        if not isinstance(device, BluetoothDevice):
-            log.debug('Setting the source device: {}'.format(source_name))
-            self.pa.default_set(device)
-        
-        if source_channels:
-            source_volume = PulseVolumeInfo(volume, source_channels)
-            log.debug('Setting source {} volume to {}'.format(source_name, source_volume))
-            self.pa.source_volume_set(device.index, source_volume)
-        
-        if device_type == 'aux' and not source_name.startswith('bluez_source'):
-            self.unload_loopback_modules()
-            self.pa.module_load('module-loopback', [
-                'source=' + source_name, 
+        if source_device.type == 'aux' and source_device.device == 'pa':
+            self.audio.unload_loopback_modules(source_name=source_name)
+
+            log.info('Loading module-loopback for {}'.format(source_name))
+            self.audio.pulse.module_load('module-loopback', [
+                'source=' + source_name,
                 'sink=' + self.sink_device,
                 'latency_msec=20'
                 ])
-        elif device_type == 'mic':
-            self.unload_loopback_modules()
+            
+    def _control_devices(self):
+        sinks               = list()
+        total_sinks         = 0
+        total_new_sinks     = 0
+        total_active_sinks  = 0
 
-        self.source_device['name'] = source_name
-        self.source_device['type'] = device_type
-        if device_type == 'bluetooth':
-            self.source_device['mac'] = device.mac_address
-    
-    """Updates the current source/sink/modules"""
-    def update_devices(self):
-        try:
-            self.bluetooth_devices.clear()
-            bth = Bluetooth()
-            for mac_address, device in bth.get_connected_devices():
-                log.debug('Found bluetooth device: {} ({})'.format(mac_address, device))
-                self.bluetooth_devices[mac_address] = device
-            
-            self.sinks.clear()
-            for sink in self.pa.sink_list():
-                log.debug('Found sink device: {} {}'.format(sink.name, sink))
-                self.sinks[sink.name] = sink
-            
-            self.sources.clear()
-            for source in self.pa.source_list():
-                log.debug('Found source device: {} {}'.format(source.name, source))
-                self.sources[source.name] = source
-            
-            self.modules.clear()
-            for module in self.pa.module_list():
-                log.debug('Found module device: {} {}'.format(module.name, module))
-                self.modules[module.name] = {
-                    'module': module
-                    }
-            
-                m_args = dict()
-                try:
-                    for key,val in re.findall(r'([^\s=]*)=(.*?)(?:\s|$)', module.argument):
-                        m_args[key] = val
-                    
-                except TypeError:
-                    pass
-            
-                self.modules[module.name]['argument'] = m_args
-                
-        except Exception as e:
-            log.exception('Failed to update PulseAudio devices:')
-            
-    def unload_loopback_modules(self):
-        for module in self.pa.module_list():
-            if module.name == 'module-loopback':
-                try:
-                    m_args = dict()
-                    for key,val in re.findall(r'([^\s=]*)=(?:\"|)(.*?)(?:\"|\s)', module.argument):
-                        m_args[key] = val
-                        
-                    if m_args['source'].startswith('bluez_source'):
-                        continue
-                    
-                    log.warning('Unloading module {} ({})'.format(m_args['source'], module.index))
-                    self.pa.module_unload(module.index)
-                except TypeError:
-                    pass
-            
-    def control_devices(self):
         # Check for any disconnected sink devices
-        if self.sink_device and self.sink_device not in self.sinks:
-            log.warning('Sink device {} has been disconnected'.format(self.sink_device))
-            self.unload_loopback_modules()
-            self.sink_device = None
-            self._clear_source_device()
+        current_devices = self.audio.get_active_devices(self.processes)
+        for sink_name in list(self.devices['sinks']):
+            if sink_name not in current_devices['sinks']:
+                log.warning('Sink device {} has been disconnected'.format(sink_name))
+                self.audio.unload_loopback_modules(sink_name=sink_name)
+                if sink_name == self.sink_device:
+                    self.sink_device = None
         
         # Check for new sink devices
-        if not self.sink_device:    
-            if self.audio_mode == 'automatic':
-                for sink_name in list(self.sinks.keys()):
-                    if not any(sink_part in sink_name for sink_part in self.priority_sinks):
-                        log.warning('Dropping sink {} as it is not in the priority list'.format(sink_name))
-                        self.sinks.pop(sink_name)
-                    
-            for sink_name, device in self.sinks.items():
-                sink_channels = len(device.volume.values)
-                if self.audio_mode == 'automatic':
-                    if self.sink_device == sink_name:
-                        break
-                    elif any(sink_name.startswith(dev) for dev in self.supported_sinks) and self.sink_device != sink_name:
-                        self._control_sink_device(sink_name, sink_channels, device)
-                        break
-                    
-                elif self.audio_mode == 'manual':
-                    if self.sink_device == sink_name:
-                        break
-                    elif sink_name in self.config.manual['sink_devices'] and self.sink_device != sink_name:
-                        self._control_sink_device(sink_name, sink_channels, device)
-                        break
-                else:
-                    raise Exception('The specified mode \'{0}\' is invalid!'.format(self.audio_mode))
-            
-                
-        if not self.sink_device:
-            log.warning("No sink devices were found!")
-            return
-            
-        # Check for any disconnected source devices
-        if self.source_device['type'] == 'bluetooth':
-            if not self.bluetooth_devices.get(self.source_device['mac']):
-                log.warning('Source device {} has been disconnected'.format(self.source_device['name']))
-                
-                self._clear_source_device()
-            
-        elif self.source_device['name'] and self.source_device['name'] not in self.sources:
-            log.warning('Source device {} has been disconnected'.format(self.source_device['name']))
-            if self.source_device['type'] == 'aux':
-                self.unload_loopback_modules()
-                
-            self._clear_source_device()
-        
-        devices_found = 0
-        devices_connected = 0
-        for mac_address, device_name in self.bluetooth_devices.items():
-            devices_found += 1
-            
-            if self.source_device['name'] != device_name and devices_connected == 0:
-                device = BluetoothDevice(device_name, mac_address)
-                self._control_source_device(device_name, None, device, 'bluetooth')
-                devices_connected += 1
-                
-        for source_name, device in self.sources.items():
-            source_channels = len(device.volume.values)
-            source_volume = device.volume.values
-            
-            if self.audio_mode == 'automatic':
-                if not any(src in source_name for src in self.supported_sources):
-                    continue
-            
-                devices_found += 1
-            
-                source_channels = len(device.volume.values)
-                source_volume = device.volume.values
-            
-                if self.source_device['name'] != source_name and devices_connected == 0:
-                    if self.config.automatic['audio_mode'] == 'bluetooth':
-                        continue
+        for sink_name, sink_device in current_devices['sinks'].items():
+            total_sinks += 1
 
-                    self._control_source_device(source_name, source_channels, device, self.config.automatic['audio_mode'])
-                    devices_connected += 1
-                    break
+            # Check to see if the device is already being managed
+            if self.devices['sinks'].get(sink_name, False):
+                total_active_sinks += 1
+                sinks.append(sink_name)
+                continue
+            
+            control_sink = False
+            sink_channels = len(sink_device.volume.values)
+            if self.audio_mode == 'automatic':
+                output_device = self.config.automatic['output_device']
+                if output_device and sink_device.device != output_device:
+                    log.warning('Skipping sink {} as it is not {}'.format(sink_name, output_device))
+                    continue
                 
-            elif self.audio_mode == 'manual':                        
-                if source_name in self.config.manual['mic_devices']:
-                    devices_found += 1
-                    if self.source_device['name'] != source_name and devices_connected == 0:
-                        self._control_source_device(source_name, source_channels, device, 'mic', volume=.75)
-                        devices_connected += 1
-                        
-                elif source_name in self.config.manual['aux_devices']:
-                    devices_found += 1
-                    if self.source_device['name'] != source_name and devices_connected == 0:
-                        self._control_source_device(source_name, source_channels, device, 'aux', volume=.75)
-                        devices_connected += 1
-                        
+                control_sink = True
+
+            elif self.audio_mode == 'manual':
+                if sink_name in self.config.manual['sink_devices']:
+                    control_sink = True
+
             else:
                 raise Exception('The specified mode \'{0}\' is invalid!'.format(self.audio_mode))
-        
+
+            if control_sink:
+                total_new_sinks += 1
+                sinks.append(sink_name)
+                self.sink_device = sink_name
+                self._control_sink_device(sink_name, sink_channels, sink_device)
+
+                if not self.allow_multiple_sinks:
+                    break
+
+        # Exit function if no sinks are identified (Nothing to do)
+        if total_sinks == 0:
+            log.warning("No sink devices were found!")
+            return
+           
+        # Handle multiple sinks if enabled
+        if (total_active_sinks + total_new_sinks) >= 2 and total_new_sinks > 0:
+            unloaded = True
+            if current_devices['modules'].get('module-combine-sink'):
+                log.info('Found an active module-combined-sink module loaded!')
+                unloaded = self.audio.unload_combined_sink_modules()
+
+            if unloaded:
+                log.info('Loading combined sink for {}'.format(sinks))
+                self.audio.pulse.module_load('module-combine-sink', [
+                    'slaves=' + ','.join(sinks)
+                    ])
+                self.audio.pulse.sink_default_set('combined')
+                self.sink_device = 'combined'
+        elif (total_active_sinks + total_new_sinks) <= 1:
+            if self.audio.unload_combined_sink_modules():
+                current_devices['modules'].pop('module-combine-sink')
+
+        # Check for any disconnected source devices
+        for source_name in list(self.devices['sources']):
+            if source_name not in current_devices['sources']:
+                log.warning('Source device {} has been disconnected'.format(source_name))
+                if isinstance(self.devices['sources'][source_name], BluetoothDevice):
+                    continue
+                elif self.devices['sources'][source_name].type == 'aux':
+                    self.audio.unload_loopback_modules(source_name=source_name)
+                if source_name == self.source_device:
+                    self.source_device = None
+                    
+        devices_found = 0
+        devices_connected = 0
+        for source_name, source_device in current_devices['sources'].items():
+            devices_found += 1
+            if self.devices['sources'].get(source_name, False):
+                continue
+                
+            source_volume = .75
+            control_source = False
+            log.info('Checking source: {}'.format(source_name))
+            if isinstance(source_device, BluetoothDevice):
+                control_source = True
+
+            elif isinstance(source_device, AirPlayDevice):
+                control_source = True
+
+            elif isinstance(source_device, PlexAmpDevice):
+                control_source = True
+
+            elif self.audio_mode == 'automatic':
+                input_mode = self.config.automatic['input_mode']
+                if input_mode and source_device.type != input_mode:
+                    log.warning('Skipping source {} as it is not {}'.format(source_name, input_mode))
+                    continue
+
+                control_source = True
+
+            elif self.audio_mode == 'manual':
+                if source_device.type == 'mic' and source_name in self.config.manual['mic_devices']:
+                    control_source = True
+
+                elif source_device.type == 'aux' and source_name in self.config.manual['aux_devices']:
+                    control_source = True
+
+            else:
+                raise Exception('The specified mode \'{0}\' is invalid!'.format(self.audio_mode))
+
+            if control_source:
+                devices_connected += 1
+                self.source_device = source_name
+                self._control_source_device(
+                    source_name, 
+                    source_device, 
+                    source_volume
+                    )
+
         if devices_found == 0:
-            log.debug("No mic/aux devices detected")
-            self._clear_source_device()
+            log.warning("No mic/aux devices detected")
+
+        self.devices = current_devices
         
     def control(self):
         while not self.thread_event.is_set():
             try:
                 if self.display_ctrl and self.config.general['projectm_enabled']:
                     self.display_ctrl.enforce_resolution()
-                    
-                self.update_devices()
-                self.control_devices()
+
+                self._control_devices()
             except Exception as e:
                 log.exception('Device control failed!')
                 
@@ -340,9 +267,16 @@ class DeviceControl():
         self.thread.start()
     
     def stop(self):
+        # Unload any modules created by ProjectMAR
+        self.audio.unload_combined_sink_modules()
+        for name, device in self.devices['sources'].items():
+            if device.type == 'aux':
+                self.audio.unload_loopback_modules(source_name=name)
+
+        self.audio.close()
+
         self.thread_event.set()
         self.thread.join()
-        self.pa.close()
         
 
 def main():
@@ -373,12 +307,20 @@ def main():
         try:
             if config.general['projectm_enabled']:
                 if projectm_wrapper.projectm_process.poll() != None:
-                    log.warning('ProjectM has terminated!')
+                    log.warning(
+                        'ProjectM has exited with return code {}'.format(
+                            projectm_wrapper.projectm_process.returncode
+                            ))
                     projectm_wrapper.thread_event.set()
                     projectm_wrapper.stop()
-                    
-                    log.info('Executing ProjectMSDL and monitorring presets for hangs...')
-                    projectm_wrapper.execute()
+
+                    if not config.general['projectm_restore']:
+                        log.warning('Stopping ProjectMAR due to ProjectMDSL exit')
+                        break
+
+                    else:
+                        log.info('Executing ProjectMSDL and monitorring presets for hangs...')
+                        projectm_wrapper.execute()
             
             time.sleep(1)
         except KeyboardInterrupt:

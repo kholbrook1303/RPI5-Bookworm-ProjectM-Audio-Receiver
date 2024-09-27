@@ -22,6 +22,10 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="lib\abstracts.py" />
+    <Compile Include="lib\config.py" />
+    <Compile Include="lib\controllers.py" />
+    <Compile Include="lib\log.py" />
     <Compile Include="presetManagement.py" />
     <Compile Include="projectMAR.py" />
   </ItemGroup>
@@ -29,6 +33,9 @@
     <Content Include="projectMAR.conf" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="lib\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
