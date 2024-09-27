@@ -285,7 +285,7 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
   </details>
 
   <details>
-  <summary><b>RPI Lite OS Instructions</b></summary>
+  <summary><b>RPI OS Lite Instructions</b></summary>
  
   ### Setup the auto start on boot
 
@@ -304,6 +304,31 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
   Add the device, resolution, and refresh rate to the end of the cmdline.txt
   ```
   video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
+  ```
+
+  ### Create a startup service
+  Create a service by running
+  ```
+  sudo nano /etc/systemd/user/projectm.service
+  ```
+
+  ```
+  [Unit]
+  Description=ProjectMAR
+
+  [Service]
+  Type=simple
+  ExecStart=/opt/ProjectMSDL/env/bin/python3 /opt/ProjectMSDL/projectMAR.py
+  Restart=on-failure
+
+  [Install]
+  WantedBy=default.target
+  ```
+
+  Enable and start the service
+  ```
+  systemctl --user enable projectm
+  systemctl --user start projectm
   ```
   </details>
 
@@ -393,7 +418,9 @@ sudo systemctl start bt-agent
 
 <details>
 <summary><b>Setup AirPlay receiver</b></summary>
-Setup and build Shairport Sync
+
+
+### Setup and build Shairport Sync
 
 * It is advised to follow the most recent build steps from https://github.com/mikebrady/shairport-sync/blob/master/BUILD.md
 
@@ -438,20 +465,55 @@ sudo systemctl enable nqptp
 sudo systemctl start nqptp
 ```
 
-### Setup the auto start on boot
+## Environment Specific Instructions
 
-Add Shairport to autostart
-```
-sudo nano /etc/xdg/autostart/shairport.desktop
-```
+  <details>
+  <summary><b>RPI OS Desktop Instructions</b></summary>
+  ### Setup the auto start on boot
 
-Add the following configuration
-```
-[Desktop Entry]
-Name=Shairport
-Exec=/usr/local/bin/shairport-sync
-Type=Application
-```
+  Add Shairport to autostart
+  ```
+  sudo nano /etc/xdg/autostart/shairport.desktop
+  ```
+
+  Add the following configuration
+  ```
+  [Desktop Entry]
+  Name=Shairport
+  Exec=/usr/local/bin/shairport-sync
+  Type=Application
+  ```
+  </details>
+
+  <details>
+  <summary><b>RPI OS Lite Instructions</b></summary>
+
+  Create a service by running
+  ```
+  sudo nano /etc/systemd/user/shairport.service
+  ```
+  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
+  ```
+  [Unit]
+  Description=Shairport-Sync
+
+  [Service]
+  Type=simple
+  ExecStart=/usr/local/bin/shairport-sync
+  Restart=on-failure
+
+  [Install]
+  WantedBy=default.target
+  ```
+
+  Enable and start the service
+  ```
+  systemctl --user enable shairport
+  systemctl --user start shairport
+  ```
+  </details>
+  <br/>
+
 </details>
 
 <details>
@@ -460,6 +522,7 @@ Type=Application
 ### Get PlexAmp and NodeJS
 
 ```
+cd ~
 wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.11.0.tar.bz2
 tar -xvjf Plexamp-Linux-headless-v4.11.0.tar.bz2
 cd plexamp
@@ -482,12 +545,56 @@ https://plex.tv/claim
 
 Paste the claim code in the terminal window and proceed with naming your player
 
-### Setup Plexamp
+## Environment Specific Instructions
 
-Launch Plexamp
-```
-node ~/plexamp/js/index.js
-```
+  <details>
+  <summary><b>RPI OS Desktop Instructions</b></summary>
+  
+  ### Setup the auto start on boot
+
+  Add Plexamp to autostart
+  ```
+  sudo nano /etc/xdg/autostart/plexamp.desktop
+  ```
+
+  Add the following configuration (Make sure to change the USERNAME variable)
+  ```
+  [Desktop Entry]
+  Name=Plexamp
+  Exec=/usr/bin/node /home/<USERNAME>/plexamp/js/index.js
+  Type=Application
+  ```
+  </details>
+
+  <details>
+  <summary><b>RPI OS Lite Instructions</b></summary>
+
+  Create a service by running
+  ```
+  sudo nano /etc/systemd/user/plexamp.service
+  ```
+
+  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes (Make sure to change the USERNAME variable)
+  ```
+  [Unit]
+  Description=Plexamp
+
+  [Service]
+  Type=simple
+  ExecStart=/usr/bin/node /home/<USERNAME>/plexamp/js/index.js
+  Restart=on-failure
+
+  [Install]
+  WantedBy=default.target
+  ```
+
+  Enable and start the service
+  ```
+  systemctl --user enable plexamp
+  systemctl --user start plexamp
+  ```
+  </details>
+<br/>
 
 On a system with a web browser navigate to your Plexamp system
 ```
@@ -495,20 +602,5 @@ http://<RaspberryPi_IP>:32500
 ```
 
 Login with your PlexPass credentials
-
-### Setup the auto start on boot
-
-Add Plexamp to autostart
-```
-sudo nano /etc/xdg/autostart/plexamp.desktop
-```
-
-Add the following configuration
-```
-[Desktop Entry]
-Name=Plexamp
-Exec=/usr/bin/node /home/<USERNAME>/plexamp/js/index.js
-Type=Application
-```
 
 </details>
