@@ -136,9 +136,21 @@ sudo chmod 777 -R /opt/ProjectMSDL
 
 Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configurations to the below:
 ```
-window.fullscreen = true
 projectM.meshX = 64
 projectM.meshY = 32
+```
+
+For OS Lite enable fullscreen exclusive mode.
+
+***Note:** I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.*
+```
+window.fullscreen.exclusiveMode = true
+window.fullscreen.width = 1280
+window.fullscreen.height = 720
+```
+For OS Desktop enable fullscreen.
+```
+window.fullscreen = true
 ```
 
 Open the '/etc/environment' file to set environment variables
