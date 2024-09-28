@@ -117,7 +117,7 @@ class DeviceControl():
         # Check for any disconnected sink devices
         current_devices = self.audio.get_active_devices(self.processes)
         for sink_name in list(self.devices['sinks']):
-            if sink_name not in current_devices['sinks']:
+            if not current_devices['sinks'].get(sink_name):
                 log.warning('Sink device {} has been disconnected'.format(sink_name))
                 self.audio.unload_loopback_modules(sink_name=sink_name)
                 if sink_name == self.sink_device:
@@ -184,7 +184,7 @@ class DeviceControl():
 
         # Check for any disconnected source devices
         for source_name in list(self.devices['sources']):
-            if source_name not in current_devices['sources']:
+            if not current_devices['sources'].get(source_name):
                 log.warning('Source device {} has been disconnected'.format(source_name))
                 if isinstance(self.devices['sources'][source_name], BluetoothDevice):
                     continue
@@ -202,7 +202,6 @@ class DeviceControl():
                 
             source_volume = .75
             control_source = False
-            log.info('Checking source: {}'.format(source_name))
             if isinstance(source_device, BluetoothDevice):
                 control_source = True
 
