@@ -149,10 +149,11 @@ class Audio(Controller):
                     continue
 
                 sink_input_device = None
+                app_name = sink_input.proplist['application.name']
                 if '/usr/bin/node' in processes[pid]['COMMAND']:
-                    sink_input_device = PlexAmpDevice(sink_input.name, sink_input.index, sink_input)
+                    sink_input_device = PlexAmpDevice(app_name, sink_input.index, sink_input)
                 elif '/usr/local/bin/shairport-sync' in processes[pid]['COMMAND']:
-                    sink_input_device = AirPlayDevice(sink_input.name, sink_input.index, sink_input)
+                    sink_input_device = AirPlayDevice(app_name, sink_input.index, sink_input)
 
                 if not sink_input_device:
                     print ('Unable to identify a process for {}'.format(processes[pid]))
@@ -161,7 +162,7 @@ class Audio(Controller):
                 log.debug('Found source device: {} {}'.format(sink_input_device.type, sink_input))
 
                 sink_input_device.active = True
-                device_meta['sources'][sink_input.name] = sink_input_device
+                device_meta['sources'][app_name] = sink_input_device
             
             for module in self.pulse.module_list():
                 log.debug('Found module device: {} {}'.format(module.name, module))
