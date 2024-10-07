@@ -144,7 +144,7 @@ class Audio(Controller):
             log.info('Unloading combined sink {}'.format(module.name))
             self.pulse.module_unload(module.index)
 
-    def combined_sinks(self, combined_sinks):
+    def load_combined_sinks(self, combined_sinks):
         log.info('Loading combined sink for {}'.format(combined_sinks))
         self.pulse.module_load('module-combine-sink', [
             'slaves=' + ','.join(combined_sinks)
@@ -458,7 +458,7 @@ class Audio(Controller):
                 sink_device.active = True
                 combined_sinks.append(sink_device.name)
 
-            self.unload_combined_sink_modules(combined_sinks)
+            self.load_combined_sinks(combined_sinks)
             self.pulse.sink_default_set('combined')
             self.sink_device = 'combined'
 
@@ -526,7 +526,7 @@ class Audio(Controller):
         self.pulse.close()
 
 class ProjectM(Controller):
-    def __init__(self, config, control):
+    def __init__(self, config, control, thread_event):
         super().__init__()
         
         self.config = config
@@ -539,7 +539,7 @@ class ProjectM(Controller):
         self.projectm_config = Config(config_path, config_header='[projectm]')
         
         self.threads = list()
-        self.thread_event = Event()
+        self.thread_event = thread_event
         
         self.preset_start = 0
         self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
