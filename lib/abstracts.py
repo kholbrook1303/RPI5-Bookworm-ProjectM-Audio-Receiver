@@ -4,7 +4,7 @@ from subprocess import PIPE, Popen
 
 log = logging.getLogger()
 
-class Wrapper:
+class Controller:
     def __init__(self):
         pass
     
