@@ -6,6 +6,7 @@ import time
 from tkinter import CURRENT
 
 from pulsectl import Pulse, PulseVolumeInfo
+from pulsectl.pulsectl import PulseOperationFailed
 from threading import Event, Thread
 
 from lib.abstracts import Controller
@@ -34,7 +35,6 @@ class PlexAmpDevice:
         self.type           = 'aux'
         self.meta           = meta
      
-# TODO: Get method to control shairport-sync
 class AirPlayDevice:
     def __init__(self, device_name, index, meta):
         self.name           = device_name
@@ -84,16 +84,6 @@ class Audio(Controller):
 
         return module_args
 
-    def set_sink_volume(self, device, sink_name, sink_channels, sink_volume):
-        sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
-        log.info('Setting sink {} volume to {}'.format(sink_name, sink_volume))
-        self.pulse.sink_volume_set(device.index, sink_volume)
-
-    def set_source_volume(self, device, source_name, source_channels, volume):
-        source_volume = PulseVolumeInfo(volume, source_channels)
-        log.info('Setting source {} volume to {}'.format(source_name, source_volume))
-        self.pulse.source_volume_set(device.index, source_volume)
-
     def get_modules(self, module_name):
         modules = list()
 
@@ -120,10 +110,12 @@ class Audio(Controller):
             unload = False
             if not source_name and not sink_name:
                 unload = True
-            elif sink_name and module_args['sink'] == sink_name:
+            elif sink_name and module_args.get('sink', None) == sink_name:
                 unload = True
-            elif source_name and module_args['source'] == source_name:
+            elif source_name and module_args.get('source', None) == source_name:
                 unload = True
+            else:
+                log.warning('unable to unload loopback module {}'.format(module.__dict__))
 
             if unload:
                 log.info('Unloading loopback module {}'.format(module.name))
@@ -151,12 +143,7 @@ class Audio(Controller):
             ])
 
     def update_plugin_devices(self):
-        plugins = list()
-
-        try:
-            plugins = self.pulse.sink_input_list()
-        except Exception as e:
-            log.error('Failed to update plugin devices: {}'.format(e))
+        plugins = self.pulse.sink_input_list()
 
         # Check for any disconnected plugin devices
         for plugin_name in list(self.devices.plugin_devices):
@@ -190,35 +177,31 @@ class Audio(Controller):
     def update_bluetooth_devices(self):
         bluetooth_devices = list()
 
-        try:
-            bth = Bluetooth()
-            for mac_address, device_name in bth.get_connected_devices():
-                bluetooth_device = BluetoothDevice(device_name, mac_address)
-                bluetooth_devices.append(bluetooth_device)
-
-        except Exception as e:
-            log.error('Failed to update A2DP bluetooth devices: {}'.format(e))
+        bth = Bluetooth()
+        for mac_address, device_name in bth.get_connected_devices():
+            bluetooth_device = BluetoothDevice(device_name, mac_address)
+            bluetooth_devices.append(bluetooth_device)
             
         # Check for any disconnected bluetooth devices
-        for bluetooth_device in list(self.devices.bluetooth_devices):
-            if not self.devices.bluetooth_devices.get(bluetooth_device.name):
-                log.warning('Plugin device {} has been disconnected'.format(bluetooth_device.name))
-                self.devices.bluetooth_devices.pop(bluetooth_device.name)
+        for bluetooth_name in list(self.devices.bluetooth_devices):
+            if not any(bth_device.name == bluetooth_name for bth_device in bluetooth_devices):
+                log.warning('Plugin device {} has been disconnected'.format(bluetooth_name))
+                self.devices.bluetooth_devices.pop(bluetooth_name)
 
-        for bluetooth_device in self.devices.bluetooth_devices:
+        for bluetooth_device in bluetooth_devices:
             if self.devices.bluetooth_devices.get(bluetooth_device.name):
                 continue
 
             log.info('Found bluetooth device: {} {}'.format(bluetooth_device.name, bluetooth_device))
             self.devices.bluetooth_devices[bluetooth_device.name] = bluetooth_device
 
-    def update_sink_devices(self):
-        sinks = list()
+    def set_sink_volume(self, sink_device, sink_channels, sink_volume):
+        sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
+        log.info('Setting sink {} volume to {}'.format(sink_device.name, sink_volume))
+        self.pulse.sink_volume_set(sink_device.index, sink_volume)
 
-        try:
-            sinks = self.pulse.sink_list()
-        except Exception as e:
-            log.error('Failed to update PulseAudio sink devices: {}'.format(e))
+    def update_sink_devices(self):
+        sinks = self.pulse.sink_list()
 
         # Check for any disconnected sink devices
         for sink_name in list(self.devices.sink_devices):
@@ -249,9 +232,18 @@ class Audio(Controller):
                 log.debug('Sink device: {} is not supported'.format(sink.name))
                 self.devices.unsupported_sinks[sink.name] = sink
                 
-                # TODO: Investigate this
+                sink_volume = None
+                if self.audio_mode == 'automatic':
+                    sink_volume = self.config.automatic.get('sink_device_volume', 1.0)
+                elif self.audio == 'manual':
+                    sink_volume = self.config.manual.get('combined_sink_volume', 1.0)
+
+                if not isinstance(sink_volume, float):
+                    log.warning('Combined sink requires a float object')
+                    sink_volume = 1.0
+
                 sink_channels = len(sink.volume.values)
-                self.set_sink_volume(sink, sink.name, sink_channels, .75)
+                self.set_sink_volume(sink, sink_channels, sink_volume)
                 continue
 
             sink_type = None
@@ -273,12 +265,12 @@ class Audio(Controller):
             sink.device = 'pa'
             self.devices.sink_devices[sink.name] = sink
     
-    def _control_sink_device(self, sink_name, sink_channels, sink_device, sink_volume=.75):
-        log.info('Identified a new sink device: {}'.format(sink_name))
-        self.pulse.sink_default_set(sink_name)
-        self.set_sink_volume(sink_device, sink_name, sink_channels, sink_volume)
+    def control_sink_device(self, sink_channels, sink_device, sink_volume):
+        log.info('Identified a new sink device: {}'.format(sink_device.name))
+        self.pulse.sink_default_set(sink_device.name)
+        self.set_sink_volume(sink_device, sink_channels, sink_volume)
 
-    def get_valid_sink_devices(self):
+    def get_supported_sink_devices(self):
         if self.audio_mode == 'automatic':
             for sink_name, sink_device in self.devices.sink_devices.items():
                 if sink_device.active:
@@ -288,8 +280,18 @@ class Audio(Controller):
                 if sink_device_type and sink_device.type != sink_device_type:
                     log.debug('Skipping sink {} as it is not {}'.format(sink_name, sink_device_type))
                     continue
-                
-                yield sink_device
+
+                sink_volume = self.config.automatic.get('sink_device_volume', 1.0)
+                if not isinstance(sink_volume, float):
+                    log.warning('Sink {} does not have a float value for volume'.format(sink_name))
+                    sink_volume = 1.0
+                    
+                supported_sink = {
+                    'device': sink_device,
+                    'volume': sink_volume
+                    }
+
+                yield supported_sink
 
         elif self.audio_mode == 'manual':
             for sink_id in self.config.manual['sink_devices']:
@@ -308,16 +310,21 @@ class Audio(Controller):
                     if sink_device_type and sink_device.type != sink_device_type:
                         log.debug('Skipping sink {} as it is not {}'.format(sink_device, sink_device_type))
                         continue
+                    
+                sink_volume = sink_meta.get('volume', 1.0)
+                if not isinstance(sink_volume, float):
+                    log.warning('Sink {} does not have a float value for volume'.format(sink_name))
+                    sink_volume = 1.0
+                    
+                supported_sink = {
+                    'device': sink_device,
+                    'volume': sink_volume
+                    }
 
-                    yield sink_device
+                yield supported_sink
 
     def update_source_devices(self):
-        sources = list()
-
-        try:
-            sources = self.pulse.source_list()
-        except Exception as e:
-            log.error('Failed to update PulseAudio source devices: {}'.format(e))
+        sources = self.pulse.source_list()
 
         # Check for any disconnected source devices
         for source_name in list(self.devices.source_devices):
@@ -371,10 +378,15 @@ class Audio(Controller):
             source.type = source_type
             source.device = 'pa'
             self.devices.source_devices[source.name] = source
+
+    def set_source_volume(self, source_device, source_channels, volume):
+        source_volume = PulseVolumeInfo(volume, source_channels)
+        log.info('Setting source {} volume to {}'.format(source_device.name, source_volume))
+        self.pulse.source_volume_set(source_device.index, source_volume)
                 
-    def _control_source_device(self, source_name, source_device, source_volume):
+    def control_source_device(self, source_device, source_volume):
         log.info('Identified a new {} {} source device: {} ({})'.format(
-            source_device.device, source_device.type, source_name, source_device.description
+            source_device.device, source_device.type, source_device.name, source_device.description
             ))
 
         source_channels = 0
@@ -384,21 +396,20 @@ class Audio(Controller):
             pass
 
         if source_channels > 0:
-            self.set_source_volume(source_device, source_name, source_channels, source_volume)
-
+            self.set_source_volume(source_device, source_channels, source_volume)
         
         loopback_modules = self.get_modules('module-loopback')
         if self.sink_device and source_device.type == 'aux' and source_device.device == 'pa':
             if len(loopback_modules) > 0:
-                self.unload_loopback_modules(source_name=source_name)
+                self.unload_loopback_modules(source_name=source_device.name)
 
             for sink in self.devices.sink_devices.values():
                 if not sink.active:
                     continue
                 
-                self.load_loopback_module(source_name, sink.name)
+                self.load_loopback_module(source_device.name, sink.name)
 
-    def get_valid_source_devices(self):
+    def get_supported_source_devices(self):
         if self.audio_mode == 'automatic':
             for source_name, source_device in self.devices.source_devices.items():
                 if source_device.active:
@@ -409,7 +420,17 @@ class Audio(Controller):
                     log.debug('Skipping source {} as it is not {}'.format(source_name, source_device_type))
                     continue
 
-                yield source_device
+                source_volume = self.config.automatic.get('source_device_volume', .85)
+                if not isinstance(source_volume, float):
+                    log.warning('Source {} does not have a float value for volume'.format(source_name))
+                    source_volume = .85
+                    
+                supported_source = {
+                    'device': source_device,
+                    'volume': source_volume
+                    }
+
+                yield supported_source
 
         elif self.audio_mode == 'manual':
             for source_id in self.config.manual['source_devices']:
@@ -427,91 +448,110 @@ class Audio(Controller):
                     if source_device_type and source_device.type != source_device_type:
                         log.debug('Skipping source {} as it is not {}'.format(source_name, source_device_type))
                         continue
+
+                    source_volume = source_meta.get('volume', .85)
+                    if not isinstance(source_volume, float):
+                        log.warning('Source {} does not have a float value for volume'.format(source_name))
+                        source_volume = .85
                     
-                    yield source_device
+                    supported_source = {
+                        'device': source_device,
+                        'volume': source_volume
+                        }
+
+                    yield supported_source
 
     def handle_devices(self):
-        self.update_sink_devices()
-        self.update_source_devices()
-        self.update_bluetooth_devices()
-        self.update_plugin_devices()
+        try:
+            self.update_sink_devices()
+            self.update_source_devices()
+            self.update_bluetooth_devices()
+            self.update_plugin_devices()
 
-        active_sinks = list()
-        for sink_device in self.devices.sink_devices.values():
-            if sink_device.active:
-                active_sinks.append(sink_device)
+            active_sinks = list()
+            for sink_device in self.devices.sink_devices.values():
+                if sink_device.active:
+                    active_sinks.append(sink_device)
         
-        inactive_sinks = list()
-        for sink_device in self.get_valid_sink_devices():
-            inactive_sinks.append(sink_device)
+            inactive_sinks = list()
+            for supported_sink in self.get_supported_sink_devices():
+                inactive_sinks.append(supported_sink)
 
-        total_sinks = len(active_sinks) + len(inactive_sinks)
-        if self.allow_multiple_sinks and total_sinks > 1 and len(inactive_sinks) > 0:
-            if self.module_loaded('module-combine-sink'):
-                log.info('Found an active module-combined-sink module loaded!')
-                self.unload_combined_sink_modules()
+            total_sinks = len(active_sinks) + len(inactive_sinks)
+            if self.allow_multiple_sinks and total_sinks > 1 and len(inactive_sinks) > 0:
+                if self.module_loaded('module-combine-sink'):
+                    log.info('Found an active module-combined-sink module loaded!')
+                    self.unload_combined_sink_modules()
 
-            combined_sinks = list()
-            for sink_device in active_sinks:
-                combined_sinks.append(sink_device.name)
-            for sink_device in inactive_sinks:
-                sink_device.active = True
-                combined_sinks.append(sink_device.name)
+                combined_sinks = list()
+                for sink_device in active_sinks:
+                    combined_sinks.append(sink_device.name)
+                for supported_sink in inactive_sinks:
+                    supported_sink['device'].active = True
+                    combined_sinks.append(supported_sink['device'].name)
 
-            self.load_combined_sinks(combined_sinks)
-            self.pulse.sink_default_set('combined')
-            self.sink_device = 'combined'
+                self.load_combined_sinks(combined_sinks)
+                self.pulse.sink_default_set('combined')
+                self.sink_device = 'combined'
 
-        elif not self.allow_multiple_sinks and len(active_sinks) > 0:
-            pass
-        else:
-            if self.allow_multiple_sinks and total_sinks <= 1 and self.module_loaded('module-combine-sink'):
-                self.unload_combined_sink_modules()
+            elif not self.allow_multiple_sinks and len(active_sinks) > 0:
+                pass
+            else:
+                if self.allow_multiple_sinks and total_sinks <= 1 and self.module_loaded('module-combine-sink'):
+                    self.unload_combined_sink_modules()
 
-            for sink_device in inactive_sinks:
-                sink_channels = len(sink_device.volume.values)
-                self.sink_device = sink_device.name
-                self._control_sink_device(sink_device.name, sink_channels, sink_device)
-                self.devices.sink_devices[sink_device.name].active = True
+                for supported_sink in inactive_sinks:
+                    sink_device = supported_sink['device']
+                    sink_volume = supported_sink['volume']
 
-                if not self.allow_multiple_sinks:
-                    break
+                    sink_channels = len(sink_device.volume.values)
+                    self.sink_device = sink_device.name
+                    self.control_sink_device(sink_channels, sink_device, sink_volume)
+                    self.devices.sink_devices[sink_device.name].active = True
 
-        if total_sinks == 0:
-            log.warning("No sink devices were found!")
+                    if not self.allow_multiple_sinks:
+                        break
 
-        active_sources = list()
-        for source_device in self.devices.source_devices.values():
-            if source_device.active:
-                active_sources.append(source_device)
+            if total_sinks == 0:
+                log.debug("No sink devices were found!")
+
+            active_sources = list()
+            for source_device in self.devices.source_devices.values():
+                if source_device.active:
+                    active_sources.append(source_device)
         
-        inactive_sources = list()
-        for source_device in self.get_valid_source_devices():
-            inactive_sources.append(source_device)
+            inactive_sources = list()
+            for supported_source in self.get_supported_source_devices():
+                inactive_sources.append(supported_source)
 
-        total_sources = len(active_sources) + len(inactive_sources)
+            total_sources = len(active_sources) + len(inactive_sources)
 
-        if total_sources == 0:
-            log.warning("No mic/aux devices detected")
-            pass
-        elif not self.allow_multiple_sources and len(active_sources) > 0:
-            pass
-        else:
-            for source_device in inactive_sources:
-                self.source_device = source_device.name
-                source_volume = .75
-                if source_device.type == 'mic':
-                    source_volume = 1
+            if total_sources == 0:
+                log.debug("No mic/aux devices detected")
+                pass
+            elif not self.allow_multiple_sources and len(active_sources) > 0:
+                pass
+            else:
+                for supported_source in inactive_sources:
+                    source_device = supported_source['device']
+                    source_volume = supported_source['volume']
 
-                self._control_source_device(
-                    source_device.name, 
-                    source_device, 
-                    source_volume
-                    )
-                self.devices.source_devices[source_device.name].active = True
+                    self.source_device = source_device.name
+                    self.control_source_device(
+                        source_device, 
+                        source_volume
+                        )
+                    self.devices.source_devices[source_device.name].active = True
 
-                if not self.allow_multiple_sources:
-                    break
+                    if not self.allow_multiple_sources:
+                        break
+
+        except PulseOperationFailed:
+            log.error('Failed to handle Pulseaudio devices... Restarting Pulseaudio')
+            self.pulse = Pulse()
+
+        except Exception as e:
+            log.exception('Failed to handle Pulseaudio devices!')
 
     def close(self):
         self.unload_combined_sink_modules()
