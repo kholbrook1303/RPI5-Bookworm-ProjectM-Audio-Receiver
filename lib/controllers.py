@@ -330,7 +330,7 @@ class Audio(Controller):
         for source_name in list(self.devices.source_devices):
             if not any (source_name == source.name for source in sources):
                 log.warning('Source device {} {} has been disconnected'.format(source_name, self.devices.source_devices[source_name].type))
-                if self.devices.source_devices[source_name].type == 'aux':
+                if self.devices.source_devices[source_name].type == 'aux' and not source_name.startswith('bluez_source'):
                     self.unload_loopback_modules(source_name=source_name)
                 if source_name == self.source_device:
                     self.source_device = None
@@ -350,11 +350,6 @@ class Audio(Controller):
 
             if source.name == 'combined.monitor':
                 log.debug('Source device: {} is not supported'.format(source.name))
-                self.devices.unsupported_sources[source.name] = source
-                continue
-
-            if source.name.startswith('bluez_source'):
-                log.debug('Source device: {} is not supported as it is handled by bluetooth'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
 
@@ -399,7 +394,7 @@ class Audio(Controller):
             self.set_source_volume(source_device, source_channels, source_volume)
         
         loopback_modules = self.get_modules('module-loopback')
-        if self.sink_device and source_device.type == 'aux' and source_device.device == 'pa':
+        if self.sink_device and source_device.type == 'aux' and not source_device.name.startswith('bluez_source'):
             if len(loopback_modules) > 0:
                 self.unload_loopback_modules(source_name=source_device.name)
 
@@ -560,7 +555,7 @@ class Audio(Controller):
             if not source_device.active:
                 continue
 
-            if source_device.type == 'aux':
+            if source_device.type == 'aux' and not source_name.startswith('bluez_source'):
                 self.unload_loopback_modules(source_name=source_name)
 
         self.pulse.close()
