@@ -25,8 +25,8 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 - 5v/5A USB-C Power Supply
 - SanDisk 32GB Extreme PRO microSD
 - Case with active cooling (The following are my recommendations)
+    - Hifiberry Steel case for RP5 w/active cooling and w/DAC+ ADC card for analog input/output
     - Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan
-    - Argon ONE V3 Case for Raspberry Pi 5 w/ Argon BLSTR DAC with Ground Loop Isolator
 - HDMI Cable with Micro HDMI adapter or Micro HDMI to HDMI cable
 - Input device of your choosing (You can always use built in Bluetooth; just know there is potential for interference with built in card)
     - USB Microphone
@@ -211,6 +211,21 @@ sudo apt install xautomation pulseaudio
 ```
 
 Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
+
+To enable higher sample rates in Pulseaudio (Specifically for various DACs) ensure you add the following to Pulseaudio daemon config
+```
+resample-method = soxr-vhq
+avoid-resampling = true
+default-sample-format = s24le
+default-sample-rate = 44100
+alternate-sample-rate = 48000
+```
+
+Either restart or you can run 
+```
+systemctl --user restart pulseaudio.socket
+systemctl --user restart pulseaudio.service
+```
 
 </details>
 

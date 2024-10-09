@@ -32,6 +32,8 @@ class Config:
                         value = config.getboolean(section, name)
                     elif self._is_str_int(str_value):
                         value = config.getint(section, name)
+                    elif self._is_str_float(str_value):
+                        value = config.getfloat(section, name)
                     else:
                         value = config.get(section, name)
 
@@ -51,6 +53,16 @@ class Config:
             return True
 
         return False
+
+    def _is_str_float(self, value):
+        """Check if string is an float.
+        @param value: object to be verified.
+        """
+        try:
+            float(value)
+            return True
+        except:
+            return False
 
     def _is_str_int(self, value):
         """Check if string is an integer.
