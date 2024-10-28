@@ -21,7 +21,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Hardware Requirements:
 
-- Raspberry Pi 5 - 8GB
+- Raspberry Pi 5 - 2GB, 4GB, or 8GB
 - 5v/5A USB-C Power Supply
 - SanDisk 32GB Extreme PRO microSD
 - Case with active cooling (The following are my recommendations)
