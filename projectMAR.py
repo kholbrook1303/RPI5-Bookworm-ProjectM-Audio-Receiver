@@ -1,4 +1,6 @@
+import argparse
 import logging
+import json
 import os
 import signal
 import sys
@@ -8,7 +10,7 @@ from threading import Thread, Event
 
 from lib.config import Config, APP_ROOT
 from lib.log import log_init
-from lib.controllers import Audio, Bluetooth, ProjectM, WaylandDisplay, XDisplay
+from lib.controllers import AudioCtrl, DisplayCtrl, ProjectMCtrl
 
 log = logging.getLogger()
     
@@ -20,111 +22,36 @@ class SignalMonitor:
 
     def set_exit(self, signum, frame):
         self.exit = True
-            
-class DeviceControl(Thread):
-    def __init__(self, config, thread_event):
-        Thread.__init__(self)
 
-        self.config                 = config
-            
-        self.audio                  = Audio(self.config)
-        self.bluetooth              = Bluetooth()
-        self.thread                 = None
-        self.thread_event           = thread_event
-        
-        self.environment            = self._get_environment()
-        
-        self.display = None
-        if self.environment == 'desktop':
-            display_method = None
-            display_type = os.environ['XDG_SESSION_TYPE']
-            log.info('Identified display type: {}'.format(display_type))
-            
-            if display_type == 'x11':
-                display_method = XDisplay
-            
-            elif display_type == 'wayland':
-                display_method = WaylandDisplay
-                
-            else:
-                raise Exception('Display type {} is not currently supported!'.format(display_type))
-            
-            self.display = display_method(
-                self.config.general['resolution'],
-                self.environment
-                )
-
-    def _get_environment(self):
-        with open('/boot/issue.txt', 'r') as infile:
-            data = infile.read()
-            for line in data.splitlines():
-                if 'stage2' in line:
-                    return 'lite'
-                elif 'stage4' in line:
-                    return 'desktop'
-                
-        return None
-        
-    def run(self):
-        while not self.thread_event.is_set():
-            try:
-                if self.display and self.config.general['projectm_enabled']:
-                    self.display.enforce_resolution()
-
-                self.audio.handle_devices()
-            except Exception as e:
-                log.exception('Device processing failed!')
-                
-            time.sleep(5)
-    
-    def close(self):
-        self.audio.close()
-        
-
-def main():
-    config_path = os.path.join(APP_ROOT, 'projectMAR.conf')
-    print (config_path)
-    config = Config(config_path)
-    
-    logpath = os.path.join(APP_ROOT, 'projectMAR.log')
-    log_init(logpath, config.general['log_level'])
-    log_init('console', config.general['log_level'])
-    
+def main(config):
     sm = SignalMonitor()
     thread_event = Event()
     
     log.info('Initializing projectMAR System Control in {0} mode...'.format(
         config.audio_receiver.get('audio_mode', 'automatic')
         ))
-    device_ctrl = DeviceControl(config, thread_event)
-    device_ctrl.start()
+
+    controllers = list()
+    audio_ctrl = AudioCtrl(thread_event, config)
+    if config.general.get('audio_receiver_enabled', True):
+        controllers.append(audio_ctrl)
+
+    display_ctrl = DisplayCtrl(thread_event, config)
+    if config.general.get('display_enforcement', True):
+        controllers.append(display_ctrl)
     
-    if config.general['projectm_enabled']:
-        log.info('Initializing projectMSDL Wrapper...')
-        projectm_wrapper = ProjectM(config, device_ctrl, thread_event)
-    
-        log.info('Executing ProjectMSDL and monitorring presets for hangs...')
-        projectm_wrapper.execute()
+    if config.general.get('projectm_enabled', True):
+        projectM_ctrl = ProjectMCtrl(thread_event, config, audio_ctrl, display_ctrl)
+        controllers.append(projectM_ctrl)
+
+    for controller in controllers:
+        controller.start()
     
     while not sm.exit:
-        try:
-            if config.general['projectm_enabled']:
-                if projectm_wrapper.projectm_process.poll() != None:
-                    log.warning(
-                        'ProjectM has exited with return code {}'.format(
-                            projectm_wrapper.projectm_process.returncode
-                            ))
-                    projectm_wrapper.thread_event.set()
-                    projectm_wrapper.stop()
+        try:      
+            if thread_event.is_set():
+                break
 
-                    if not config.general['projectm_restore']:
-                        log.warning('Stopping ProjectMAR due to ProjectMDSL exit')
-                        break
-
-                    else:
-                        log.info('Executing ProjectMSDL and monitorring presets for hangs...')
-                        projectm_wrapper.execute()
-            
             time.sleep(1)
         except KeyboardInterrupt:
             log.warning('User initiated keyboard exit')
@@ -133,16 +60,72 @@ def main():
             log.exception('projectMAR failed!')
             
     log.info('Closing down all threads/processes...')
-    thread_event.set()
-
-    if config.general['projectm_enabled']:
-        projectm_wrapper.stop()
+    if not thread_event.is_set():
+        thread_event.set()
         
-    device_ctrl.close()
-    device_ctrl.join()
+    for controller in controllers:
+        controller.join()
+        controller.close()
             
     log.info('Exiting ProjectMAR!')
     sys.exit(0)
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        '-d','--diagnostics',
+        action='store_true',
+        dest='diag',
+        help='Output diagnostics report for issue debugging'
+        )
+
+    return parser.parse_args()
+
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+
+    config_path = os.path.join(APP_ROOT, 'projectMAR.conf')
+    config = Config(config_path)
+    
+    logpath = os.path.join(APP_ROOT, 'projectMAR.log')
+    log_level = config.general.get('log_level', logging.INFO)
+    log_init(logpath, log_level)
+    log_init('console', log_level)
+
+    if args.diag:
+        diag_path = os.path.join(APP_ROOT, 'diag')
+        if not os.path.exists(diag_path):
+            os.makedirs(diag_path)
+
+        audio = AudioCtrl(None, config)
+        audio_data = dict()
+        for cat, data in audio.get_raw_diagnostics():
+            if not audio_data.get(cat):
+                audio_data[cat] = [data]
+            else:
+                audio_data[cat].append(data)
+
+        audio_json = os.path.join(diag_path, 'raw_audio.json')
+        with open(audio_json, 'w') as outfile:
+            outfile.write(json.dumps(audio_data, indent=2, default=str))
+
+        audio_devices = audio.get_device_diagnostics()
+        audio_devices_json = os.path.join(diag_path, 'audio_devices.json')
+        with open(audio_devices_json, 'w') as outfile:
+            outfile.write(json.dumps(audio_data, indent=2, default=str))
+
+        audio.close()
+
+        display = DisplayCtrl(None, config)
+        if display.environment == 'desktop':
+            display_data = display.get_diagnostics()
+
+            display_json = os.path.join(diag_path, 'display.json')
+            with open(display_json, 'w') as outfile:
+                outfile.write(json.dumps(display_data, indent=2, default=str))
+
+        display.close()
+        sys.exit(0)
+
+    main(config)

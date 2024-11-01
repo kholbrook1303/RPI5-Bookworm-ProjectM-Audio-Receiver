@@ -2,6 +2,7 @@ import logging
 import os
 import random
 import re
+import threading
 import time
 from tkinter import CURRENT
 
@@ -56,22 +57,68 @@ class DeviceCatalog:
         self.unsupported_sinks      = dict()
         self.unsupported_sources    = dict()
 
-class Audio(Controller):
-    def __init__(self, config):
+class AudioCtrl(Controller, threading.Thread):
+    def __init__(self, thread_event, config):
+        threading.Thread.__init__(self)
         super().__init__()
         
         self.config = config
+        self.thread_event = thread_event
         
-        self.audio_mode             = self.config.audio_receiver['audio_mode']
-        self.io_device_mode         = self.config.audio_receiver['io_device_mode']
-        self.allow_multiple_sinks   = self.config.audio_receiver['allow_multiple_sinks']
-        self.allow_multiple_sources = self.config.audio_receiver['allow_multiple_sources']
+        self.audio_mode             = self.config.audio_receiver.get('audio_mode', 'automatic')
+        self.io_device_mode         = self.config.audio_receiver.get('io_device_mode', 'aux')
+        self.allow_multiple_sinks   = self.config.audio_receiver.get('allow_multiple_sinks', True)
+        self.allow_multiple_sources = self.config.audio_receiver.get('allow_multiple_sources', True)
         self.sink_device            = None
         self.source_device          = None
         
         self.devices                = DeviceCatalog()
 
         self.pulse = Pulse()
+
+    def get_raw_diagnostics(self):
+        log.info('Getting sinks: sink_list()')
+        for sinkInfo in self.pulse.sink_list():
+            log.info('Identified sink {}'.format(sinkInfo.name))
+            yield 'sinks', sinkInfo.__dict__
+            
+        log.info('Getting sources: source_list()')
+        for sourceInfo in self.pulse.source_list():
+            log.info('Identified sink {}'.format(sourceInfo.name))
+            yield 'sources', sourceInfo.__dict__
+            
+        log.info('Getting sink inputs: sink_input_list()')
+        for sinkInputInfo in self.pulse.sink_input_list():
+            log.info('Identified sink input {}'.format(sinkInputInfo.name))
+            yield 'sink_inputs', sinkInputInfo.__dict__
+    
+        log.info('Getting source outputs: source_output_list()')
+        for sourceOutputInfo in self.pulse.source_output_list():
+            log.info('Identified sink input {}'.format(sourceOutputInfo.name))
+            yield 'source_outputs', sourceOutputInfo.__dict__
+            
+        log.info('Getting modules: module_list()')
+        for moduleInfo in self.pulse.module_list():
+            log.info('Identified module {}'.format(moduleInfo.name))
+            yield 'modules', moduleInfo.__dict__
+            
+        log.info('Getting cards: card_list()')
+        for cardInfo in self.pulse.card_list():
+            log.info('Identified card {}'.format(cardInfo.name))
+            yield 'cards', cardInfo.__dict__
+            
+        log.info('Getting clients: client_list()')
+        for clientInfo in self.pulse.client_list():
+            log.info('Identified client {}'.format(clientInfo.name))
+            yield 'clients', clientInfo.__dict__
+
+    def get_device_diagnostics(self):
+        self.update_sink_devices()
+        self.update_source_devices()
+        self.update_bluetooth_devices()
+        self.update_plugin_devices()
+
+        return self.devices.__dict__
 
     def get_module_arguments(self, module):
         module_args = dict()
@@ -141,6 +188,17 @@ class Audio(Controller):
         self.pulse.module_load('module-combine-sink', [
             'slaves=' + ','.join(combined_sinks)
             ])
+
+    def set_sink_input_volume(self, sink_input_device, sink_input_channels, sink_input_volume):
+        sink_input_volume_info = PulseVolumeInfo(sink_input_volume, sink_input_channels)
+        log.info('Setting sink input {} volume to {}'.format(sink_input_device.name, sink_input_volume_info))
+        self.pulse.sink_input_volume_set(sink_input_device.meta.index, sink_input_volume_info)
+    
+    def control_plugin_device(self, plugin_device, plugin_volume):
+        log.info('Identified a new plugin device: {}'.format(plugin_device.name))
+        
+        plugin_channels = len(plugin_device.meta.volume.values)
+        self.set_sink_input_volume(plugin_device, plugin_channels, plugin_volume)
 
     def update_plugin_devices(self):
         plugins = self.pulse.sink_input_list()
@@ -265,10 +323,15 @@ class Audio(Controller):
             sink.device = 'pa'
             self.devices.sink_devices[sink.name] = sink
     
-    def control_sink_device(self, sink_channels, sink_device, sink_volume):
+    def control_sink_device(self, sink_device, sink_volume):
         log.info('Identified a new sink device: {}'.format(sink_device.name))
         self.pulse.sink_default_set(sink_device.name)
-        self.set_sink_volume(sink_device, sink_channels, sink_volume)
+
+        try:
+            sink_channels = len(sink_device.volume.values)
+            self.set_sink_volume(sink_device, sink_channels, sink_volume)
+        except:
+            pass
 
     def get_supported_sink_devices(self):
         if self.audio_mode == 'automatic':
@@ -276,7 +339,7 @@ class Audio(Controller):
                 if sink_device.active:
                     continue
 
-                sink_device_type = self.config.automatic['sink_device_type']
+                sink_device_type = self.config.automatic.get('sink_device_type', None)
                 if sink_device_type and sink_device.type != sink_device_type:
                     log.debug('Skipping sink {} as it is not {}'.format(sink_name, sink_device_type))
                     continue
@@ -294,7 +357,7 @@ class Audio(Controller):
                 yield supported_sink
 
         elif self.audio_mode == 'manual':
-            for sink_id in self.config.manual['sink_devices']:
+            for sink_id in self.config.manual.get('sink_devices', list()):
                 sink_meta = getattr(self.config, sink_id)
                 sink_name = sink_meta['name']
                 if not sink_name:
@@ -384,14 +447,11 @@ class Audio(Controller):
             source_device.device, source_device.type, source_device.name, source_device.description
             ))
 
-        source_channels = 0
         try:
             source_channels = len(source_device.volume.values)
+            self.set_source_volume(source_device, source_channels, source_volume)
         except:
             pass
-
-        if source_channels > 0:
-            self.set_source_volume(source_device, source_channels, source_volume)
         
         loopback_modules = self.get_modules('module-loopback')
         if self.sink_device and source_device.type == 'aux' and not source_device.name.startswith('bluez_source'):
@@ -410,7 +470,7 @@ class Audio(Controller):
                 if source_device.active:
                     continue
 
-                source_device_type = self.config.automatic['source_device_type']
+                source_device_type = self.config.automatic.get('source_device_type', None)
                 if source_device_type and source_device.type != source_device_type:
                     log.debug('Skipping source {} as it is not {}'.format(source_name, source_device_type))
                     continue
@@ -428,7 +488,7 @@ class Audio(Controller):
                 yield supported_source
 
         elif self.audio_mode == 'manual':
-            for source_id in self.config.manual['source_devices']:
+            for source_id in self.config.manual.get('source_devices', list()):
                 source_meta = getattr(self.config, source_id)
                 source_name = source_meta['name']
                 if not source_name:
@@ -457,96 +517,109 @@ class Audio(Controller):
                     yield supported_source
 
     def handle_devices(self):
-        try:
-            self.update_sink_devices()
-            self.update_source_devices()
-            self.update_bluetooth_devices()
-            self.update_plugin_devices()
+        self.update_sink_devices()
+        self.update_source_devices()
+        self.update_bluetooth_devices()
+        self.update_plugin_devices()
 
-            active_sinks = list()
-            for sink_device in self.devices.sink_devices.values():
-                if sink_device.active:
-                    active_sinks.append(sink_device)
+        active_sinks = list()
+        for sink_device in self.devices.sink_devices.values():
+            if sink_device.active:
+                active_sinks.append(sink_device)
         
-            inactive_sinks = list()
-            for supported_sink in self.get_supported_sink_devices():
-                inactive_sinks.append(supported_sink)
+        inactive_sinks = list()
+        for supported_sink in self.get_supported_sink_devices():
+            inactive_sinks.append(supported_sink)
 
-            total_sinks = len(active_sinks) + len(inactive_sinks)
-            if self.allow_multiple_sinks and total_sinks > 1 and len(inactive_sinks) > 0:
-                if self.module_loaded('module-combine-sink'):
-                    log.info('Found an active module-combined-sink module loaded!')
-                    self.unload_combined_sink_modules()
+        total_sinks = len(active_sinks) + len(inactive_sinks)
+        if self.allow_multiple_sinks and total_sinks > 1 and len(inactive_sinks) > 0:
+            if self.module_loaded('module-combine-sink'):
+                log.info('Found an active module-combined-sink module loaded!')
+                self.unload_combined_sink_modules()
 
-                combined_sinks = list()
-                for sink_device in active_sinks:
-                    combined_sinks.append(sink_device.name)
-                for supported_sink in inactive_sinks:
-                    supported_sink['device'].active = True
-                    combined_sinks.append(supported_sink['device'].name)
+            combined_sinks = list()
+            for sink_device in active_sinks:
+                combined_sinks.append(sink_device.name)
+            for supported_sink in inactive_sinks:
+                supported_sink['device'].active = True
+                combined_sinks.append(supported_sink['device'].name)
 
-                self.load_combined_sinks(combined_sinks)
-                self.pulse.sink_default_set('combined')
-                self.sink_device = 'combined'
+            self.load_combined_sinks(combined_sinks)
+            self.pulse.sink_default_set('combined')
+            self.sink_device = 'combined'
 
-            elif not self.allow_multiple_sinks and len(active_sinks) > 0:
-                pass
-            else:
-                if self.allow_multiple_sinks and total_sinks <= 1 and self.module_loaded('module-combine-sink'):
-                    self.unload_combined_sink_modules()
+        elif not self.allow_multiple_sinks and len(active_sinks) > 0:
+            pass
+        else:
+            if self.allow_multiple_sinks and total_sinks <= 1 and self.module_loaded('module-combine-sink'):
+                self.unload_combined_sink_modules()
 
-                for supported_sink in inactive_sinks:
-                    sink_device = supported_sink['device']
-                    sink_volume = supported_sink['volume']
+            for supported_sink in inactive_sinks:
+                sink_device = supported_sink['device']
+                sink_volume = supported_sink['volume']
 
-                    sink_channels = len(sink_device.volume.values)
-                    self.sink_device = sink_device.name
-                    self.control_sink_device(sink_channels, sink_device, sink_volume)
-                    self.devices.sink_devices[sink_device.name].active = True
+                self.sink_device = sink_device.name
+                self.control_sink_device(sink_device, sink_volume)
+                self.devices.sink_devices[sink_device.name].active = True
 
-                    if not self.allow_multiple_sinks:
-                        break
+                if not self.allow_multiple_sinks:
+                    break
 
-            if total_sinks == 0:
-                log.debug("No sink devices were found!")
+        if total_sinks == 0:
+            log.debug("No sink devices were found!")
 
-            active_sources = list()
-            for source_device in self.devices.source_devices.values():
-                if source_device.active:
-                    active_sources.append(source_device)
+        active_sources = list()
+        for source_device in self.devices.source_devices.values():
+            if source_device.active:
+                active_sources.append(source_device)
         
-            inactive_sources = list()
-            for supported_source in self.get_supported_source_devices():
-                inactive_sources.append(supported_source)
+        inactive_sources = list()
+        for supported_source in self.get_supported_source_devices():
+            inactive_sources.append(supported_source)
 
-            total_sources = len(active_sources) + len(inactive_sources)
+        total_sources = len(active_sources) + len(inactive_sources)
 
-            if total_sources == 0:
-                log.debug("No mic/aux devices detected")
-                pass
-            elif not self.allow_multiple_sources and len(active_sources) > 0:
-                pass
-            else:
-                for supported_source in inactive_sources:
-                    source_device = supported_source['device']
-                    source_volume = supported_source['volume']
+        if total_sources == 0:
+            log.debug("No mic/aux devices detected")
+            pass
+        elif not self.allow_multiple_sources and len(active_sources) > 0:
+            pass
+        else:
+            for supported_source in inactive_sources:
+                source_device = supported_source['device']
+                source_volume = supported_source['volume']
 
-                    self.source_device = source_device.name
-                    self.control_source_device(
-                        source_device, 
-                        source_volume
-                        )
-                    self.devices.source_devices[source_device.name].active = True
+                self.source_device = source_device.name
+                self.control_source_device(
+                    source_device, 
+                    source_volume
+                    )
+                self.devices.source_devices[source_device.name].active = True
 
-                    if not self.allow_multiple_sources:
-                        break
+                if not self.allow_multiple_sources:
+                    break
 
-        except PulseOperationFailed:
-            log.error('Failed to handle Pulseaudio devices... Restarting Pulseaudio')
-            self.pulse = Pulse()
+        for plugin_device in self.devices.plugin_devices.values():
+            if plugin_device.active:
+                continue
 
-        except Exception as e:
-            log.exception('Failed to handle Pulseaudio devices!')
+            self.control_plugin_device(plugin_device, 1.0)
+            plugin_device.active = True
+
+    def run(self):
+        while not self.thread_event.is_set():
+            try:
+                self.handle_devices()
+
+            except PulseOperationFailed:
+                log.exception('Failed to handle Pulseaudio devices... Restarting Pulseaudio')
+                self.pulse = Pulse()
+
+            except Exception as e:
+                log.exception('Failed to handle Pulseaudio devices!')
+
+            finally:
+                time.sleep(2)
 
     def close(self):
         self.unload_combined_sink_modules()
@@ -560,14 +633,174 @@ class Audio(Controller):
 
         self.pulse.close()
 
-class ProjectM(Controller):
-    def __init__(self, config, control, thread_event):
+class DisplayCtrl(threading.Thread):
+    def __init__(self, thread_event, config):
+        threading.Thread.__init__(self)
+
+        self.config = config
+        self.display_type = os.environ.get('XDG_SESSION_TYPE', None)
+        self.environment = self.get_environment()
+        self.thread_event = thread_event
+
+        self.ctrl = None
+        if self.environment == 'desktop':
+            display_method = None
+            log.info('Identified display type: {}'.format(self.display_type))
+            
+            if self.display_type == 'x11':
+                display_method = XDisplay
+            
+            elif self.display_type == 'wayland':
+                display_method = WaylandDisplay
+                
+            else:
+                raise Exception('Display type {} is not currently supported!'.format(self.display_type))
+            
+            self.ctrl = display_method(self.config.general.get('resolution', '1280x720'))
+
+    def get_environment(self):
+        with open('/boot/issue.txt', 'r') as infile:
+            data = infile.read()
+            for line in data.splitlines():
+                if 'stage2' in line:
+                    return 'lite'
+                elif 'stage4' in line:
+                    return 'desktop'
+                
+        return None
+
+    def get_diagnostics(self):
+        return self.ctrl.get_display_config()
+
+    def run(self):
+        while not self.thread_event.is_set():
+            if self.environment == 'desktop':
+                try:
+                    self.ctrl.enforce_resolution()
+                except:
+                    log.error('Failed to enforce resolution!')
+
+            time.sleep(5)
+
+    def close(self):
+        pass
+
+class XDisplay(Controller):
+    def __init__(self, resolution):
+        super().__init__()
+        self.resolution = resolution
+        
+    def get_display_config(self):
+        display_config = {
+            'device': None,
+            'description': None,
+            'current_resolution': None,
+            'resolutions': dict()
+            }
+        
+        display_device_regex = r'^(?P<device>HDMI.*?)\sconnected'
+        display_configs_regex = r'^(?P<resolution>\d+x\d+)\s+(?P<refreshRates>.*?)$'
+        
+        log.debug('Running xrandr...')
+        randr = self._execute(['xrandr'])
+        for line in self._read_stdout(randr):
+            log.debug('xrandr output: {}'.format(line))
+            
+            match = re.search(display_device_regex, line, re.I)
+            if match:
+                display_config['device'] = match.group('device')
+                
+            match = re.search(display_configs_regex, line, re.I)
+            if match:
+                resolution = match.group('resolution')
+                refresh_rates = match.group('refreshRates').replace('+', '')
+                if '*' in refresh_rates:
+                    display_config['current_resolution'] = resolution
+                for refresh_rate in refresh_rates.split():
+                    refresh_rate = refresh_rate.replace('*', '')
+                    if not display_config['resolutions'].get(resolution):
+                        display_config['resolutions'][resolution] = [refresh_rate]
+                    else:
+                        display_config['resolutions'][resolution].append(refresh_rate)
+            
+        return display_config
+        
+    def enforce_resolution(self):
+        display_config = self.get_display_config()
+          
+        if not display_config['current_resolution']:
+            log.warning('There is currently no display connected: {}'.format(display_config))  
+        elif display_config['current_resolution'] == self.resolution:
+            log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
+        else:
+            res_profile = display_config['resolutions'].get(self.resolution)
+            log.info('Setting resolution to {} refresh rate to {}'.format(self.resolution, max(res_profile)))
+
+            xrandr = self._execute_managed([
+                'xrandr', '--output', display_config['device'], 
+                '--mode', self.resolution, '--rate', max(res_profile)
+                ])
+
+class WaylandDisplay(Controller):
+    def __init__(self, resolution):
+        super().__init__()
+        self.resolution = resolution
+        
+    def get_display_config(self):
+        display_config = {
+            'device': None,
+            'description': None,
+            'current_resolution': None,
+            'resolutions': list()
+            }
+        
+        display_device_regex = r'^(?P<device>HDMI.*?)\s\"(?P<description>.*?)\"'
+        display_configs_regex = r'^(?P<resolution>' + self.resolution + ')\spx,\s(?P<refreshRate>\d+\.\d+)'
+        current_resolution_regex = r'^(?P<resolution>\d+x\d+)\spx,\s(?P<refreshRate>\d+\.\d+).*?current'
+        
+        randr = self._execute(['wlr-randr'])
+        for line in self._read_stdout(randr):
+            log.debug('wlr-randr output: {}'.format(line))
+            
+            match = re.search(display_device_regex, line, re.I)
+            if match:
+                display_config['device'] = match.group('device')
+                display_config['description'] = match.group('description')
+                
+            match = re.search(display_configs_regex, line, re.I)
+            if match:
+                display_config['resolutions'].append(match.group('resolution') + '@' + match.group('refreshRate') + 'Hz')
+            
+            match = re.search(current_resolution_regex, line, re.I)
+            if match:
+                display_config['current_resolution'] = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
+                
+        return display_config
+        
+    def enforce_resolution(self):
+        display_config = self.get_display_config()
+          
+        if len(display_config['resolutions']) == 0:
+            log.warning('There is currently no display connected: {}'.format(display_config))  
+        elif display_config['current_resolution'] == max(display_config['resolutions']):
+            log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
+        else:
+            log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
+            randr = self._execute_managed([
+                'wlr-randr', '--output', display_config['device'], 
+                '--mode', max(display_config['resolutions'])
+                ])
+
+class ProjectMCtrl(Controller, threading.Thread):
+    def __init__(self, thread_event, config, audio_ctrl, display_ctrl):
+        threading.Thread.__init__(self)
         super().__init__()
         
         self.config = config
-        self.control = control
+        self.audio_ctrl = audio_ctrl
+        self.display_ctrl = display_ctrl
         
-        self.projectm_path = self.config.projectm['path']
+        self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
         self.projectm_process = None
         
         config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
@@ -575,6 +808,9 @@ class ProjectM(Controller):
         
         self.threads = list()
         self.thread_event = thread_event
+
+        self.advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
+        self.preset_screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
         self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
@@ -614,8 +850,8 @@ class ProjectM(Controller):
                     self.preset_start = time.time()
                 
                     # Take a preview screenshot
-                    if self.control.environment == 'desktop':
-                        if self.config.projectm['screenshots_enabled'] and self.control.audio.source_device:
+                    if self.display_ctrl.environment == 'desktop':
+                        if self.preset_screenshots_enabled and self.audio_ctrl.source_device:
                             self._take_screenshot(preset)
             except:
                 log.exception('Failed to process output')
@@ -635,7 +871,7 @@ class ProjectM(Controller):
             time.sleep(1)
             
     def _manage_playlist(self):
-        if self.config.projectm['advanced_shuffle'] == True:
+        if self.advanced_shuffle == True:
             log.info('Performing smart randomization on presets...')
             presets = list()
             for root, dirs, files in os.walk(self.preset_path):
@@ -663,7 +899,7 @@ class ProjectM(Controller):
                     log.error('Failed to rename preset {0}: {1}'.format(preset, e))
                 
         
-    def execute(self, beatSensitivity=2.0):   
+    def run(self, beatSensitivity=2.0):   
         self._manage_playlist()
     
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
@@ -688,36 +924,32 @@ class ProjectM(Controller):
         hang_thread.daemon = True
         hang_thread.start()
         self.threads.append(hang_thread)
-        
-    def stop(self):
+
+        while not self.thread_event.is_set():
+            if self.projectm_process.poll() != None:
+                log.warning(
+                    'ProjectM has exited with return code {}'.format(
+                        self.projectm_process.returncode
+                        ))
+
+                if not self.config.general.get('projectm_restore', False):
+                    log.warning('Stopping ProjectMAR due to ProjectMDSL exit')
+                    self.thread_event.set()
+
+                else:
+                    log.info('Executing ProjectMSDL and monitorring presets for hangs...')
+                    self.projectm_process = self._execute(
+                        [app_path, '--beatSensitivity=' + str(beatSensitivity)]
+                        )
+            time.sleep(1)
+
         for thread in self.threads:
             thread.join()
             
         self.projectm_process.kill()
 
-class Device(Controller):
-    def __init__(self):
-        super().__init__()
-        
-    def get_display_type(self):
-        session_type = self._execute(['echo %XDG_SESSION_TYPE'], shell=True)
-        for line in self._read_stdout(session_type):
-            return line
-        
-        raise Exception("Failed to get the XDG_SESSION_TYPE variable!")
-    
-    def kill_process_by_name(self, process_name):
-        pgrep = self._execute(['pgrep', '-f', process_name])
-        for line in self._read_stdout(pgrep):
-            self.kill_process_by_name(process_name)
-    
-    def kill_process_pid(self, pid):
-        log.info('Killing process {}...'.format(pid))
-        self._execute_managed(['sudo', 'kill', pid])
-    
-    def kill_process_name(self, process_name):
-        log.info('Killing process {}...'.format(process_name))
-        self._execute_managed(['sudo', 'killall',  process_name])
+    def close(self):
+        pass
 
 class Bluetooth(Controller):
     def __init__(self):
@@ -745,116 +977,3 @@ class Bluetooth(Controller):
     def disconnect_device(self, source_device):
         log.info('Disconnecting bluetooth device: {}'.format(source_device.name))
         self._execute_managed(['bluetoothctl', 'disconnect', source_device.mac_address])
-
-class XDisplay(Controller):
-    def __init__(self, resolution, environment):
-        super().__init__()
-        
-        self.resolution = resolution
-        self.environment = environment
-        
-    def get_display_config(self):
-        display_config = {
-            'device': None,
-            'description': None,
-            'current_resolution': None,
-            'resolutions': dict()
-            }
-        
-        display_device_regex = r'^(?P<device>HDMI.*?)\sconnected'
-        display_configs_regex = r'^(?P<resolution>\d+x\d+)\s+(?P<refreshRates>.*?)$'
-        
-        log.debug('Running xrandr...')
-        randr = self._execute(['xrandr'])
-        for line in self._read_stdout(randr):
-            log.debug('xrandr output: {}'.format(line))
-            
-            match = re.search(display_device_regex, line, re.I)
-            if match:
-                display_config['device'] = match.group('device')
-                
-            match = re.search(display_configs_regex, line, re.I)
-            if match:
-                resolution = match.group('resolution')
-                refresh_rates = match.group('refreshRates').replace('+', '')
-                if '*' in refresh_rates:
-                    display_config['current_resolution'] = resolution
-                for refresh_rate in refresh_rates.split():
-                    refresh_rate = refresh_rate.replace('*', '')
-                    if not display_config['resolutions'].get(resolution):
-                        display_config['resolutions'][resolution] = [refresh_rate]
-                    else:
-                        display_config['resolutions'][resolution].append(refresh_rate)
-            
-        return display_config
-        
-    def enforce_resolution(self):
-        if self.environment == 'desktop':
-            display_config = self.get_display_config()
-          
-            if not display_config['current_resolution']:
-                log.warning('There is currently no display connected: {}'.format(display_config))  
-            elif display_config['current_resolution'] == self.resolution:
-                log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
-            else:
-                res_profile = display_config['resolutions'].get(self.resolution)
-                log.info('Setting resolution to {} refresh rate to {}'.format(self.resolution, max(res_profile)))
-
-                xrandr = self._execute_managed([
-                    'xrandr', '--output', display_config['device'], 
-                    '--mode', self.resolution, '--rate', max(res_profile)
-                    ])
-
-
-class WaylandDisplay(Controller):
-    def __init__(self, resolution, environment):
-        super().__init__()
-        
-        self.resolution = resolution
-        self.environment = environment
-        
-    def get_display_config(self):
-        display_config = {
-            'device': None,
-            'description': None,
-            'current_resolution': None,
-            'resolutions': list()
-            }
-        
-        display_device_regex = r'^(?P<device>HDMI.*?)\s\"(?P<description>.*?)\"'
-        display_configs_regex = r'^(?P<resolution>' + self.resolution + ')\spx,\s(?P<refreshRate>\d+\.\d+)'
-        current_resolution_regex = r'^(?P<resolution>\d+x\d+)\spx,\s(?P<refreshRate>\d+\.\d+).*?current'
-        
-        randr = self._execute(['wlr-randr'])
-        for line in self._read_stdout(randr):
-            log.debug('wlr-randr output: {}'.format(line))
-            
-            match = re.search(display_device_regex, line, re.I)
-            if match:
-                display_config['device'] = match.group('device')
-                display_config['description'] = match.group('description')
-                
-            match = re.search(display_configs_regex, line, re.I)
-            if match:
-                display_config['resolutions'].append(match.group('resolution') + '@' + match.group('refreshRate') + 'Hz')
-            
-            match = re.search(current_resolution_regex, line, re.I)
-            if match:
-                display_config['current_resolution'] = match.group('resolution') + '@' + match.group('refreshRate') + 'Hz'
-                
-        return display_config
-        
-    def enforce_resolution(self):
-        if self.environment == 'desktop':
-            display_config = self.get_display_config()
-          
-            if len(display_config['resolutions']) == 0:
-                log.warning('There is currently no display connected: {}'.format(display_config))  
-            elif display_config['current_resolution'] == max(display_config['resolutions']):
-                log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
-            else:
-                log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
-                randr = self._execute_managed([
-                    'wlr-randr', '--output', display_config['device'], 
-                    '--mode', max(display_config['resolutions'])
-                    ])
