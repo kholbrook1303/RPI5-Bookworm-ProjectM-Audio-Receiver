@@ -34,6 +34,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Software Requirements:
 - Raspberry Pi OS Bookworm:
+  - Desktop with labwc (I have seen some sporatic issues when booting the desktop environment, however no issues were observed with ProjectMAR)
   - Desktop with Wayland Display
   - Desktop with X11
   - Lite
