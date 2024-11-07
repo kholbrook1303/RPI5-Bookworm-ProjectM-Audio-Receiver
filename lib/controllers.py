@@ -374,17 +374,17 @@ class AudioCtrl(Controller, threading.Thread):
                         log.debug('Skipping sink {} as it is not {}'.format(sink_device, sink_device_type))
                         continue
                     
-                sink_volume = sink_meta.get('volume', 1.0)
-                if not isinstance(sink_volume, float):
-                    log.warning('Sink {} does not have a float value for volume'.format(sink_name))
-                    sink_volume = 1.0
+                    sink_volume = sink_meta.get('volume', 1.0)
+                    if not isinstance(sink_volume, float):
+                        log.warning('Sink {} does not have a float value for volume'.format(sink_name))
+                        sink_volume = 1.0
                     
-                supported_sink = {
-                    'device': sink_device,
-                    'volume': sink_volume
-                    }
+                    supported_sink = {
+                        'device': sink_device,
+                        'volume': sink_volume
+                        }
 
-                yield supported_sink
+                    yield supported_sink
 
     def update_source_devices(self):
         sources = self.pulse.source_list()
