@@ -894,7 +894,7 @@ class ProjectMCtrl(Controller, threading.Thread):
                     log.warning('The visualization has not changed in the alloted timeout!')
                     log.info('Manually transitioning to the next visualization...')
                     xautomation_process = self._execute(['xte'])
-                    xautomation_process.communicate(input=b'key n\n')
+                    xautomation_process.communicate(input='key n\n')
                 
             time.sleep(1)
             
