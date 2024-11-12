@@ -76,6 +76,15 @@ class AudioCtrl(Controller, threading.Thread):
 
         self.pulse = Pulse()
 
+        # Load null sink
+        self.pulse.module_load('module-null-sink', [
+            'sink_name=platform-project_mar.stereo',
+            'sink_properties=device.description=ProjectMAR-Sink-Monitor'
+            ])
+
+        # Set null sink monitor as default
+        self.pulse.source_default_set('platform-project_mar.stereo.monitor')
+
     def get_raw_diagnostics(self):
         log.info('Getting sinks: sink_list()')
         for sinkInfo in self.pulse.sink_list():
@@ -161,8 +170,6 @@ class AudioCtrl(Controller, threading.Thread):
                 unload = True
             elif source_name and module_args.get('source', None) == source_name:
                 unload = True
-            else:
-                log.warning('unable to unload loopback module {}'.format(module.__dict__))
 
             if unload:
                 log.info('Unloading loopback module {}'.format(module.name))
@@ -177,6 +184,11 @@ class AudioCtrl(Controller, threading.Thread):
             'source_dont_move=true',
             'sink_dont_move=true'
             ])
+
+    def unload_null_sink_modules(self):
+        for module in self.get_modules('module-null-sink'):
+            log.info('Unloading null sink {}'.format(module.name))
+            self.pulse.module_unload(module.index)
 
     def unload_combined_sink_modules(self):
         for module in self.get_modules('module-combine-sink'):
@@ -393,10 +405,12 @@ class AudioCtrl(Controller, threading.Thread):
         for source_name in list(self.devices.source_devices):
             if not any (source_name == source.name for source in sources):
                 log.warning('Source device {} {} has been disconnected'.format(source_name, self.devices.source_devices[source_name].type))
-                if self.devices.source_devices[source_name].type == 'aux' and not source_name.startswith('bluez_source'):
+                if not source_name.startswith('bluez_source'):
                     self.unload_loopback_modules(source_name=source_name)
+
                 if source_name == self.source_device:
                     self.source_device = None
+
                 self.devices.source_devices.pop(source_name)
 
         for source in sources:
@@ -407,11 +421,19 @@ class AudioCtrl(Controller, threading.Thread):
 
             log.debug('Found source device: {} {}'.format(source.name, source))
             if source.name.startswith('alsa_output'):
+                if self.sink_device and self.sink_device in source.name:
+                    if self.pulse.source_default_get() != source.name:
+                        self.load_loopback_module(source.name, 'platform-project_mar.stereo')
+
                 log.debug('Source device: {} is not supported'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
 
             if source.name == 'combined.monitor':
+                if self.sink_device and self.sink_device == 'combined':
+                    if self.pulse.source_default_get() != source.name:
+                        self.load_loopback_module(source.name, 'platform-project_mar.stereo')
+
                 log.debug('Source device: {} is not supported'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
@@ -453,16 +475,20 @@ class AudioCtrl(Controller, threading.Thread):
         except:
             pass
         
-        loopback_modules = self.get_modules('module-loopback')
-        if self.sink_device and source_device.type == 'aux' and not source_device.name.startswith('bluez_source'):
-            if len(loopback_modules) > 0:
-                self.unload_loopback_modules(source_name=source_device.name)
+        if not source_device.name.startswith('bluez_source'):
+            self.unload_loopback_modules(source_name=source_device.name)
 
-            for sink in self.devices.sink_devices.values():
-                if not sink.active:
-                    continue
+            if self.sink_device and source_device.type == 'aux':
+
+                for sink in self.devices.sink_devices.values():
+                    if not sink.active:
+                        continue
                 
-                self.load_loopback_module(source_device.name, sink.name)
+                    self.load_loopback_module(source_device.name, sink.name)
+
+            elif self.sink_device and source_device.type == 'mic':
+                self.load_loopback_module(source_device.name, 'platform-project_mar.stereo')
+
 
     def get_supported_source_devices(self):
         if self.audio_mode == 'automatic':
@@ -628,8 +654,10 @@ class AudioCtrl(Controller, threading.Thread):
             if not source_device.active:
                 continue
 
-            if source_device.type == 'aux' and not source_name.startswith('bluez_source'):
+            if not source_name.startswith('bluez_source'):
                 self.unload_loopback_modules(source_name=source_name)
+
+        self.unload_null_sink_modules()
 
         self.pulse.close()
 
