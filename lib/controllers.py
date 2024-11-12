@@ -305,7 +305,7 @@ class AudioCtrl(Controller, threading.Thread):
                 sink_volume = None
                 if self.audio_mode == 'automatic':
                     sink_volume = self.config.automatic.get('sink_device_volume', 1.0)
-                elif self.audio == 'manual':
+                elif self.audio_mode == 'manual':
                     sink_volume = self.config.manual.get('combined_sink_volume', 1.0)
 
                 if not isinstance(sink_volume, float):
@@ -544,9 +544,6 @@ class AudioCtrl(Controller, threading.Thread):
 
     def handle_devices(self):
         self.update_sink_devices()
-        self.update_source_devices()
-        self.update_bluetooth_devices()
-        self.update_plugin_devices()
 
         active_sinks = list()
         for sink_device in self.devices.sink_devices.values():
@@ -593,6 +590,10 @@ class AudioCtrl(Controller, threading.Thread):
 
         if total_sinks == 0:
             log.debug("No sink devices were found!")
+
+        self.update_source_devices()
+        self.update_bluetooth_devices()
+        self.update_plugin_devices()
 
         active_sources = list()
         for source_device in self.devices.source_devices.values():
