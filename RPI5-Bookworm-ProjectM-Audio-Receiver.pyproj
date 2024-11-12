@@ -33,6 +33,7 @@
     <Content Include="projectMAR.conf" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
+    <Content Include="requirements.txt" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="lib\" />
