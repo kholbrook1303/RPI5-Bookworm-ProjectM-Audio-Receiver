@@ -77,8 +77,9 @@ class AudioCtrl(Controller, threading.Thread):
         self.pulse = Pulse()
 
         # Load null sink
+        self.ar_sink = 'platform-project_mar.stereo'
         self.pulse.module_load('module-null-sink', [
-            'sink_name=platform-project_mar.stereo',
+            'sink_name=' + self.ar_sink,
             'sink_properties=device.description=ProjectMAR-Sink-Monitor'
             ])
 
@@ -130,25 +131,25 @@ class AudioCtrl(Controller, threading.Thread):
         return self.devices.__dict__
 
     def get_module_arguments(self, module):
-        module_args = dict()
-        try:
-            for key,val in re.findall(r'([^\s=]*)=(.*?)(?:\s|$)', module.argument):
-                module_args[key] = val
-                    
-        except TypeError:
-            pass
-
-        return module_args
+        module.args = dict()
+        if hasattr(module, 'argument'):
+            if module.argument:
+                args = module.argument.split(' ')
+                for arg in args:
+                    key,val = arg.split('=', 1)
+                    module.args[key] = val
 
     def get_modules(self, module_name):
         modules = list()
-
-        try:
-            for module in self.pulse.module_list():
+        
+        for module in self.pulse.module_list():
+            try:
+                self.get_module_arguments(module)
                 if module.name == module_name:
                     modules.append(module)
-        except:
-            pass
+            except:
+                log.exception('Failed to process argument {}'.format(module.argument))
+                pass
 
         return modules
 
@@ -160,15 +161,13 @@ class AudioCtrl(Controller, threading.Thread):
         return False
             
     def unload_loopback_modules(self, sink_name=None, source_name=None):
-        for module in self.get_modules('module-loopback'):
-            module_args = self.get_module_arguments(module)
-            
+        for module in self.get_modules('module-loopback'):            
             unload = False
             if not source_name and not sink_name:
                 unload = True
-            elif sink_name and module_args.get('sink', None) == sink_name:
+            elif sink_name and module.args.get('sink', None) == sink_name:
                 unload = True
-            elif source_name and module_args.get('source', None) == source_name:
+            elif source_name and module.args.get('source', None) == source_name:
                 unload = True
 
             if unload:
@@ -421,19 +420,15 @@ class AudioCtrl(Controller, threading.Thread):
 
             log.debug('Found source device: {} {}'.format(source.name, source))
             if source.name.startswith('alsa_output'):
-                if self.sink_device and self.sink_device in source.name:
-                    if self.pulse.source_default_get() != source.name:
-                        self.load_loopback_module(source.name, 'platform-project_mar.stereo')
+                loopback_modules = self.get_modules('module-loopback')
+                if not any(lm.args['source'] == source.name and lm.args['sink'] == self.ar_sink for lm in loopback_modules):
+                    self.load_loopback_module(source.name, self.ar_sink)
 
                 log.debug('Source device: {} is not supported'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
 
             if source.name == 'combined.monitor':
-                if self.sink_device and self.sink_device == 'combined':
-                    if self.pulse.source_default_get() != source.name:
-                        self.load_loopback_module(source.name, 'platform-project_mar.stereo')
-
                 log.debug('Source device: {} is not supported'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
@@ -487,7 +482,7 @@ class AudioCtrl(Controller, threading.Thread):
                     self.load_loopback_module(source_device.name, sink.name)
 
             elif self.sink_device and source_device.type == 'mic':
-                self.load_loopback_module(source_device.name, 'platform-project_mar.stereo')
+                self.load_loopback_module(source_device.name, self.ar_sink)
 
 
     def get_supported_source_devices(self):
