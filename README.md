@@ -291,7 +291,7 @@ If all is well close ProjectMSDL
 alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```
 
-## Environment Specific Instructions
+## Environment Specific Startup Instructions
 
   <details>
   <summary><b>RPI OS Desktop Instructions</b></summary>
@@ -493,7 +493,24 @@ sudo systemctl enable nqptp
 sudo systemctl start nqptp
 ```
 
-## Environment Specific Instructions
+## Universal Startup Instructions
+***Note:** If you prefer to manage the startup of Shairport-Sync then skip this and proceed to environment specific startup instructions*
+
+Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+```
+plugin_ctrl=True
+plugins=plugin1
+```
+
+Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters replacing the 'USER' with your username
+```
+[plugin1]
+name=Shairport-Sync
+path=/usr/local/bin/shairport-sync
+arguments=
+```
+
+## Environment Specific Startup Instructions
 
   <details>
   <summary><b>RPI OS Desktop Instructions</b></summary>
@@ -542,6 +559,8 @@ sudo systemctl start nqptp
   </details>
   <br/>
 
+---
+
 </details>
 
 <details>
@@ -573,7 +592,24 @@ https://plex.tv/claim
 
 Paste the claim code in the terminal window and proceed with naming your player
 
-## Environment Specific Instructions
+## Universal Startup Instructions
+***Note:** If you prefer to manage the startup of Plexamp then skip this and proceed to environment specific startup instructions*
+
+Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+```
+plugin_ctrl=True
+plugins=plugin1,plugin2
+```
+
+Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters replacing the 'USER' with your username
+```
+[plugin2]
+name=PlexAmp
+path=/usr/bin/node
+arguments=/home/<USER>/plexamp/js/index.js
+```
+
+## Environment Specific Startup Instructions
 
   <details>
   <summary><b>RPI OS Desktop Instructions</b></summary>
@@ -621,8 +657,11 @@ Paste the claim code in the terminal window and proceed with naming your player
   systemctl --user enable plexamp
   systemctl --user start plexamp
   ```
+  
   </details>
 <br/>
+
+---
 
 On a system with a web browser navigate to your Plexamp system
 ```

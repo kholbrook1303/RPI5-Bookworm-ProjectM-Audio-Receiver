@@ -658,6 +658,77 @@ class AudioCtrl(Controller, threading.Thread):
 
         self.pulse.close()
 
+class PluginCtrl(Controller, threading.Thread):
+    def __init__(self, thread_event, config):
+        threading.Thread.__init__(self)
+        super().__init__()
+
+        self.config = config
+        self.thread_event = thread_event
+        self.threads = list()
+        self.processes = list()
+                    
+    def _monitor_output(self, plugin_name, plugin_process):
+        for line in self._read_stdout(plugin_process):
+            log.debug('{} Plugin Output: {}'.format(plugin_name, line))
+
+    def run(self):
+        plugins = self.config.audio_receiver.get('plugins', list())
+        for plugin in plugins:
+            try:
+                plugin_meta = getattr(self.config, plugin)
+                plugin_name = plugin_meta['name']
+                plugin_path = plugin_meta['path']
+
+                if plugin_name == '' or plugin_path == '':
+                    log.error('Plugin {} has not been configured'.format(plugin))
+                    continue
+                
+                args = list()
+                args.append(plugin_path)
+
+                plugin_args = plugin_meta['arguments'].split(' ')
+                for plugin_arg in plugin_args:
+                    if plugin_arg == '':
+                        continue
+
+                    args.append(plugin_arg)
+
+                log.info('Loading plugin {}'.format(plugin_name))
+                plugin_process = self._execute(args)
+                self.processes.append(plugin_process)
+        
+                monitor_thread = Thread(
+                    target=self._monitor_output,
+                    args=(plugin_name, plugin_process)
+                    )
+                monitor_thread.daemon = True
+                monitor_thread.start()
+                self.threads.append(monitor_thread)
+
+            except Exception as e:
+                log.exception('Failed to load plugin {} with error {}'.format(plugin, e))
+
+        while not self.thread_event.is_set():
+            for process in self.processes:
+                if process.poll() != None:
+                    log.warning(
+                        '{} has exited with return code {}'.format(
+                            process.args, process.returncode
+                            ))
+
+            time.sleep(1)
+
+        for process in self.processes:
+            process.kill()
+
+        for thread in self.threads:
+            log.info('Joining threads')
+            thread.join()
+
+    def close(self):
+        pass
+
 class DisplayCtrl(threading.Thread):
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
