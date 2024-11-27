@@ -967,11 +967,11 @@ class ProjectMCtrl(Controller, threading.Thread):
                         [app_path, '--beatSensitivity=' + str(beatSensitivity)]
                         )
             time.sleep(1)
+            
+        self.projectm_process.kill()
 
         for thread in self.threads:
             thread.join()
-            
-        self.projectm_process.kill()
 
     def close(self):
         pass
