@@ -264,10 +264,16 @@ class AudioCtrl(Controller, threading.Thread):
             log.info('Found bluetooth device: {} {}'.format(bluetooth_device.name, bluetooth_device))
             self.devices.bluetooth_devices[bluetooth_device.name] = bluetooth_device
 
-    def set_sink_volume(self, sink_device, sink_channels, sink_volume):
-        sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
-        log.info('Setting sink {} volume to {}'.format(sink_device.name, sink_volume))
-        self.pulse.sink_volume_set(sink_device.index, sink_volume)
+    def set_sink_volume(self, sink_device, sink_volume):
+        try:
+            sink_channels = len(sink_device.volume.values)
+            sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
+            
+            log.info('Setting sink {} volume to {}'.format(sink_device.name, sink_volume))
+            self.pulse.sink_volume_set(sink_device.index, sink_volume)
+
+        except:
+            log.error('Failed to set sink {} volume'.format)
 
     def update_sink_devices(self):
         sinks = self.pulse.sink_list()
@@ -311,8 +317,7 @@ class AudioCtrl(Controller, threading.Thread):
                     log.warning('Combined sink requires a float object')
                     sink_volume = 1.0
 
-                sink_channels = len(sink.volume.values)
-                self.set_sink_volume(sink, sink_channels, sink_volume)
+                self.set_sink_volume(sink, sink_volume)
                 continue
 
             sink_type = None
@@ -337,12 +342,7 @@ class AudioCtrl(Controller, threading.Thread):
     def control_sink_device(self, sink_device, sink_volume):
         log.info('Identified a new sink device: {}'.format(sink_device.name))
         self.pulse.sink_default_set(sink_device.name)
-
-        try:
-            sink_channels = len(sink_device.volume.values)
-            self.set_sink_volume(sink_device, sink_channels, sink_volume)
-        except:
-            pass
+        self.set_sink_volume(sink_device, sink_volume)
 
     def get_supported_sink_devices(self):
         if self.audio_mode == 'automatic':
@@ -454,22 +454,23 @@ class AudioCtrl(Controller, threading.Thread):
             source.device = 'pa'
             self.devices.source_devices[source.name] = source
 
-    def set_source_volume(self, source_device, source_channels, volume):
-        source_volume = PulseVolumeInfo(volume, source_channels)
-        log.info('Setting source {} volume to {}'.format(source_device.name, source_volume))
-        self.pulse.source_volume_set(source_device.index, source_volume)
+    def set_source_volume(self, source_device, volume):
+        try:
+            source_channels = len(source_device.volume.values)
+            source_volume = PulseVolumeInfo(volume, source_channels)
+
+            log.info('Setting source {} volume to {}'.format(source_device.name, source_volume))
+            self.pulse.source_volume_set(source_device.index, source_volume)
+
+        except:
+            log.error('Failed to set source {} volume'.format(source_device.name))
                 
     def control_source_device(self, source_device, source_volume):
         log.info('Identified a new {} {} source device: {} ({})'.format(
             source_device.device, source_device.type, source_device.name, source_device.description
             ))
 
-        try:
-            source_channels = len(source_device.volume.values)
-            self.set_source_volume(source_device, source_channels, source_volume)
-        except:
-            pass
-        
+        self.set_source_volume(source_device, source_volume)
         if not source_device.name.startswith('bluez_source'):
             self.unload_loopback_modules(source_name=source_device.name)
 
