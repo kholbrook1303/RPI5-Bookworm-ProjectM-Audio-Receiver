@@ -59,7 +59,7 @@ class DeviceCatalog:
 class AudioCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
-        super().__init__()
+        super().__init__(thread_event)
         
         self.config = config
         self.thread_event = thread_event
@@ -72,6 +72,7 @@ class AudioCtrl(Controller, threading.Thread):
         self.source_device          = None
         
         self.devices                = DeviceCatalog()
+        self.bluetoothCtrl          = BluetoothCtrl(self.thread_event)
 
         self.pulse = Pulse()
 
@@ -245,8 +246,7 @@ class AudioCtrl(Controller, threading.Thread):
     def update_bluetooth_devices(self):
         bluetooth_devices = list()
 
-        bth = Bluetooth()
-        for mac_address, device_name in bth.get_connected_devices():
+        for mac_address, device_name in self.bluetoothCtrl.get_connected_devices():
             bluetooth_device = BluetoothDevice(device_name, mac_address)
             bluetooth_devices.append(bluetooth_device)
             
@@ -660,73 +660,79 @@ class AudioCtrl(Controller, threading.Thread):
 class PluginCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
-        super().__init__()
+        super().__init__(thread_event)
 
         self.config = config
         self.thread_event = thread_event
-        self.threads = list()
-        self.processes = list()
                     
-    def _monitor_output(self, plugin_name, plugin_process):
+    def monitor_output(self, plugin_name, plugin_process):
         for line in self._read_stdout(plugin_process):
-            log.debug('{} Plugin Output: {}'.format(plugin_name, line))
+            log.info('{} Plugin Output: {}'.format(plugin_name, line))
+                    
+    def monitor_error(self, plugin_name, plugin_process):
+        for line in self._read_stderr(plugin_process):
+            log.info('{} Plugin Error: {}'.format(plugin_name, line))
 
     def run(self):
+        self._get_running_processes()
         plugins = self.config.audio_receiver.get('plugins', list())
         for plugin in plugins:
             try:
-                plugin_meta = getattr(self.config, plugin)
-                plugin_name = plugin_meta['name']
-                plugin_path = plugin_meta['path']
+                plugin_meta     = getattr(self.config, plugin)
+                plugin_name     = plugin_meta.get('name', '')
+                plugin_path     = plugin_meta.get('path', '')
+                plugin_restore  = plugin_meta.get('restore', True)
 
                 if plugin_name == '' or plugin_path == '':
                     log.error('Plugin {} has not been configured'.format(plugin))
                     continue
-                
-                args = list()
-                args.append(plugin_path)
 
-                plugin_args = plugin_meta['arguments'].split(' ')
+                plugin_meta['args'] = list()
+                plugin_meta['args'].append(plugin_path)
+
+                plugin_args = plugin_meta.get('arguments', '').split(' ')
                 for plugin_arg in plugin_args:
                     if plugin_arg == '':
                         continue
 
-                    args.append(plugin_arg)
+                    plugin_meta['args'].append(plugin_arg)
 
-                log.info('Loading plugin {}'.format(plugin_name))
-                plugin_process = self._execute(args)
-                self.processes.append(plugin_process)
+                process_cl = ' '.join(plugin_meta['args'])
+                if self._running_processes.get(process_cl):
+                    log.warning('{} is already running!  Attempting to kill the process...'.format(plugin_name))
+                    pid = int(self._running_processes[process_cl]['PID'])
+                    self._kill_running_process(pid)
+
+                log.info('Loading plugin {} with ''{}'''.format(plugin_name, ' '.join(plugin_meta['args'])))
+                plugin_process = self._execute(plugin_meta['args'])
+                self._processes[plugin_name] = {
+                    'process': plugin_process,
+                    'meta': plugin_meta
+                    }
         
-                monitor_thread = Thread(
-                    target=self._monitor_output,
+                output_thread = Thread(
+                    target=self.monitor_output,
                     args=(plugin_name, plugin_process)
                     )
-                monitor_thread.daemon = True
-                monitor_thread.start()
-                self.threads.append(monitor_thread)
+                output_thread.daemon = True
+                output_thread.start()
+                self._threads[plugin_name + '_Output'] = output_thread
+        
+                error_thread = Thread(
+                    target=self.monitor_error,
+                    args=(plugin_name, plugin_process)
+                    )
+                error_thread.daemon = True
+                error_thread.start()
+                self._threads[plugin_name + '_Error'] = error_thread
 
             except Exception as e:
                 log.exception('Failed to load plugin {} with error {}'.format(plugin, e))
 
-        while not self.thread_event.is_set():
-            for process in self.processes:
-                if process.poll() != None:
-                    log.warning(
-                        '{} has exited with return code {}'.format(
-                            process.args, process.returncode
-                            ))
-
-            time.sleep(1)
-
-        for process in self.processes:
-            process.kill()
-
-        for thread in self.threads:
-            log.info('Joining threads')
-            thread.join()
+        self._monitor_processes()
 
     def close(self):
-        pass
+        self._close()
 
 class DisplayCtrl(threading.Thread):
     def __init__(self, thread_event, config):
@@ -751,7 +757,7 @@ class DisplayCtrl(threading.Thread):
             else:
                 raise Exception('Display type {} is not currently supported!'.format(self.display_type))
             
-            self.ctrl = display_method(self.config.general.get('resolution', '1280x720'))
+            self.ctrl = display_method(self.thread_event, self.config.general.get('resolution', '1280x720'))
 
     def get_environment(self):
         with open('/boot/issue.txt', 'r') as infile:
@@ -781,8 +787,8 @@ class DisplayCtrl(threading.Thread):
         pass
 
 class XDisplay(Controller):
-    def __init__(self, resolution):
-        super().__init__()
+    def __init__(self, thread_event, resolution):
+        super().__init__(thread_event)
         self.resolution = resolution
         
     def get_display_config(self):
@@ -837,8 +843,8 @@ class XDisplay(Controller):
                 ])
 
 class WaylandDisplay(Controller):
-    def __init__(self, resolution):
-        super().__init__()
+    def __init__(self, thread_event, resolution):
+        super().__init__(thread_event)
         self.resolution = resolution
         
     def get_display_config(self):
@@ -889,19 +895,17 @@ class WaylandDisplay(Controller):
 class ProjectMCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config, audio_ctrl, display_ctrl):
         threading.Thread.__init__(self)
-        super().__init__()
+        super().__init__(thread_event)
         
         self.config = config
         self.audio_ctrl = audio_ctrl
         self.display_ctrl = display_ctrl
         
         self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
-        self.projectm_process = None
         
         config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
         self.projectm_config = Config(config_path, config_header='[projectm]')
         
-        self.threads = list()
         self.thread_event = thread_event
 
         self.advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
@@ -918,7 +922,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         if not os.path.exists(self.preset_screenshot_path):
             os.makedirs(self.preset_screenshot_path)
             
-    def _take_screenshot(self, preset):
+    def take_screenshot(self, preset):
         preset_name = os.path.splitext(preset)[0]
         preset_name_filtered = preset_name.split(' ', 1)[1]
         preset_screenshot_name = preset_name_filtered + '.png'
@@ -931,9 +935,9 @@ class ProjectMCtrl(Controller, threading.Thread):
                             
             self.preset_screenshot_index += 1
                     
-    def _monitor_output(self):
+    def monitor_output(self, projectm_process):
         preset_regex = r'Displaying preset: (?P<name>.*)$'
-        for line in self._read_stderr(self.projectm_process):
+        for line in self._read_stderr(projectm_process):
             log.debug('ProjectM Output: {0}'.format(line))
             
             try:
@@ -947,11 +951,11 @@ class ProjectMCtrl(Controller, threading.Thread):
                     # Take a preview screenshot
                     if self.display_ctrl.environment == 'desktop':
                         if self.preset_screenshots_enabled and self.audio_ctrl.source_device:
-                            self._take_screenshot(preset)
+                            self.take_screenshot(preset)
             except:
                 log.exception('Failed to process output')
             
-    def _monitor_hang(self):
+    def monitor_hang(self):
         while not self.thread_event.is_set():
             if self.preset_start == 0:
                 continue
@@ -965,7 +969,7 @@ class ProjectMCtrl(Controller, threading.Thread):
                 
             time.sleep(1)
             
-    def _manage_playlist(self):
+    def manage_playlist(self):
         if self.advanced_shuffle == True:
             log.info('Performing smart randomization on presets...')
             presets = list()
@@ -995,60 +999,54 @@ class ProjectMCtrl(Controller, threading.Thread):
                 
         
     def run(self, beatSensitivity=2.0):   
-        self._manage_playlist()
+        self.manage_playlist()
     
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
-        self.projectm_process = self._execute(
-            [app_path, '--beatSensitivity=' + str(beatSensitivity)]
-            )
+        
+        projectm_restore = self.config.general.get('projectm_restore', False)
+        projectm_meta = {
+            'path': app_path,
+            'args': [app_path, '--beatSensitivity=' + str(beatSensitivity)],
+            'restore': projectm_restore
+        }
+
+        projectm_process = self._execute(projectm_meta['args'])
+        self._processes['ProjectMDSL'] = {
+            'process': projectm_process,
+            'meta': projectm_meta
+            }
         
         # Start thread to monitor preset output to ensure
         # there are no hangs (TODO: Report to ProjectM)
-        monitor_thread = Thread(
-            target=self._monitor_output,
+        output_thread = Thread(
+            target=self.monitor_output,
+            args=(projectm_process,)
             )
-        monitor_thread.daemon = True
-        monitor_thread.start()
-        self.threads.append(monitor_thread)
+        output_thread.daemon = True
+        output_thread.start()
+        self._threads['ProjectMDSL_Output'] = output_thread
         
         # Start thread to trigger the next preset 
         # in the event of a hang
         hang_thread = Thread(
-            target=self._monitor_hang,
+            target=self.monitor_hang,
             )
         hang_thread.daemon = True
         hang_thread.start()
-        self.threads.append(hang_thread)
+        self._threads['ProjectMDSL_Hang'] = hang_thread
 
-        while not self.thread_event.is_set():
-            if self.projectm_process.poll() != None:
-                log.warning(
-                    'ProjectM has exited with return code {}'.format(
-                        self.projectm_process.returncode
-                        ))
+        halt_on_exit = False
+        if not projectm_restore:
+            halt_on_exit = True
 
-                if not self.config.general.get('projectm_restore', False):
-                    log.warning('Stopping ProjectMAR due to ProjectMDSL exit')
-                    self.thread_event.set()
-
-                else:
-                    log.info('Executing ProjectMSDL and monitorring presets for hangs...')
-                    self.projectm_process = self._execute(
-                        [app_path, '--beatSensitivity=' + str(beatSensitivity)]
-                        )
-            time.sleep(1)
-            
-        self.projectm_process.kill()
-
-        for thread in self.threads:
-            thread.join()
+        self._monitor_processes(halt_on_exit=halt_on_exit)
 
     def close(self):
-        pass
+        self._close()
 
-class Bluetooth(Controller):
-    def __init__(self):
-        super().__init__()
+class BluetoothCtrl(Controller):
+    def __init__(self, thread_event):
+        super().__init__(thread_event)
         
     def get_connected_devices(self):
         bluetoothctl =  self._execute(['bluetoothctl', 'devices', 'Connected'])

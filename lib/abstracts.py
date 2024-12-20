@@ -1,12 +1,35 @@
 import logging
+import os
+import signal
+import time
 
 from subprocess import PIPE, Popen
 
 log = logging.getLogger()
 
 class Controller:
-    def __init__(self):
-        pass
+    def __init__(self, thread_event):
+        self._threads = dict()
+        self._thread_event = thread_event
+        self._processes = dict()
+        self._running_processes = dict()
+        
+    """Obtain all of the current running processes
+    """
+    def _get_running_processes(self):
+        process = Popen(['ps', '-ax'], stdout=PIPE)
+
+        stdout = process.stdout.readlines()
+        headers = [h for h in ' '.join(stdout[0].decode('UTF-8').strip().split()).split() if h]
+        raw_data = map(lambda s: s.decode('UTF-8').strip().split(None, len(headers) - 1), stdout[1:])
+
+        self._running_processes = {r[4]:dict(zip(headers, r)) for r in raw_data}
+        
+    """Kill a running process by PID
+    @param pid: a process id (int)
+    """
+    def _kill_running_process(self, pid):
+        os.kill(pid, signal.SIGKILL)
     
     """Process stdout of a process instance.
     @param process: a process instance 
@@ -53,3 +76,34 @@ class Controller:
             return False
         
         return True
+
+    def _monitor_processes(self, halt_on_exit=False):
+        while not self._thread_event.is_set():
+            for process_name, attr in self._processes.items():
+                if attr['process'].poll() != None:
+                    log.warning(
+                        '{} has exited with return code {}'.format(
+                            process_name, attr['process'].returncode
+                            ))
+
+                    if halt_on_exit:
+                        log.warning('Stopping ProjectMAR due to {} exit'.format(process_name))
+                        self._thread_event.set()
+
+                    elif attr['meta']['restore']:
+                        process = self._execute(attr['meta']['args'])
+                        attr['process'] = process
+
+            time.sleep(1)
+
+    """Perform any controller exit operations
+    """
+    def _close(self):
+        for process_name, attr in self._processes.items():
+            if attr['process'].poll() == None:
+                log.info('Terminating process {}'.format(process_name))
+                attr['process'].kill()
+
+        for thread_name, thread in self._threads.items():
+            log.info('Joining thread {}'.format(thread_name))
+            thread.join()
