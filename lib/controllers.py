@@ -7,7 +7,7 @@ import time
 
 from pulsectl import Pulse, PulseVolumeInfo
 from pulsectl.pulsectl import PulseOperationFailed
-from threading import Event, Thread
+from threading import Thread
 
 from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
