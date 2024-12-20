@@ -4,7 +4,6 @@ import random
 import re
 import threading
 import time
-from tkinter import CURRENT
 
 from pulsectl import Pulse, PulseVolumeInfo
 from pulsectl.pulsectl import PulseOperationFailed
