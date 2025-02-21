@@ -427,7 +427,7 @@ class AudioCtrl(Controller, threading.Thread):
                 self.devices.unsupported_sources[source.name] = source
                 continue
 
-            if source.name == 'combined.monitor':
+            if source.name.endswith('.monitor'):
                 log.debug('Source device: {} is not supported'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
