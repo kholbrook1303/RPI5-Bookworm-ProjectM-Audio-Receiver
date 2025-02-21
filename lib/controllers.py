@@ -7,43 +7,22 @@ import time
 
 from pulsectl import Pulse, PulseVolumeInfo
 from pulsectl.pulsectl import PulseOperationFailed
-from threading import Event, Thread
+from threading import Thread
 
 from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
 
 log = logging.getLogger()
 
-class BluetoothDevice:
-    def __init__(self, device_name, mac_address):
+class PluginDevice:
+    def __init__(self, device_name, device_index, device_meta=None):
         self.name           = device_name
         self.description    = None
-        self.mac_address    = mac_address
-        self.index          = None
+        self.index          = device_index
         self.active         = False
-        self.device         = 'bluetooth'
+        self.device         = None
         self.type           = 'aux'
-        self.meta           = None
-
-class PlexAmpDevice:
-    def __init__(self, device_name, index, meta):
-        self.name           = device_name
-        self.description    = None
-        self.index          = index
-        self.active         = False
-        self.device         = 'plexamp'
-        self.type           = 'aux'
-        self.meta           = meta
-     
-class AirPlayDevice:
-    def __init__(self, device_name, index, meta):
-        self.name           = device_name
-        self.description    = None
-        self.index          = index
-        self.active         = False
-        self.device         = 'airplay'
-        self.type           = 'aux'
-        self.meta           = meta
+        self.meta           = device_meta
 
 class DeviceCatalog:
     def __init__(self):
@@ -59,7 +38,7 @@ class DeviceCatalog:
 class AudioCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
-        super().__init__()
+        super().__init__(thread_event)
         
         self.config = config
         self.thread_event = thread_event
@@ -72,6 +51,7 @@ class AudioCtrl(Controller, threading.Thread):
         self.source_device          = None
         
         self.devices                = DeviceCatalog()
+        self.bluetoothCtrl          = BluetoothCtrl(self.thread_event)
 
         self.pulse = Pulse()
 
@@ -231,9 +211,11 @@ class AudioCtrl(Controller, threading.Thread):
                 if not self.devices.plugin_devices.get(app):
                     plugin_device = None
                     if app == 'node':
-                        plugin_device = PlexAmpDevice(app, plugin.index, plugin)
+                        plugin_device = PluginDevice(app, plugin.index, plugin)
+                        plugin_device.device = 'plexamp'
                     elif app == 'shairport-sync':
-                        plugin_device = AirPlayDevice(app, plugin.index, plugin)
+                        plugin_device = PluginDevice(app, plugin.index, plugin)
+                        plugin_device.device = 'airplay'
 
                     if not plugin_device:
                         log.warning('Unable to identify plugin device: {}'.format(plugin.__dict__))
@@ -245,9 +227,9 @@ class AudioCtrl(Controller, threading.Thread):
     def update_bluetooth_devices(self):
         bluetooth_devices = list()
 
-        bth = Bluetooth()
-        for mac_address, device_name in bth.get_connected_devices():
-            bluetooth_device = BluetoothDevice(device_name, mac_address)
+        for mac_address, device_name in self.bluetoothCtrl.get_connected_devices():
+            bluetooth_device = PluginDevice(device_name, mac_address)
+            bluetooth_device.device = 'bluetooth'
             bluetooth_devices.append(bluetooth_device)
             
         # Check for any disconnected bluetooth devices
@@ -263,10 +245,16 @@ class AudioCtrl(Controller, threading.Thread):
             log.info('Found bluetooth device: {} {}'.format(bluetooth_device.name, bluetooth_device))
             self.devices.bluetooth_devices[bluetooth_device.name] = bluetooth_device
 
-    def set_sink_volume(self, sink_device, sink_channels, sink_volume):
-        sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
-        log.info('Setting sink {} volume to {}'.format(sink_device.name, sink_volume))
-        self.pulse.sink_volume_set(sink_device.index, sink_volume)
+    def set_sink_volume(self, sink_device, sink_volume):
+        try:
+            sink_channels = len(sink_device.volume.values)
+            sink_volume = PulseVolumeInfo(sink_volume, sink_channels)
+            
+            log.info('Setting sink {} volume to {}'.format(sink_device.name, sink_volume))
+            self.pulse.sink_volume_set(sink_device.index, sink_volume)
+
+        except:
+            log.error('Failed to set sink {} volume'.format)
 
     def update_sink_devices(self):
         sinks = self.pulse.sink_list()
@@ -310,8 +298,7 @@ class AudioCtrl(Controller, threading.Thread):
                     log.warning('Combined sink requires a float object')
                     sink_volume = 1.0
 
-                sink_channels = len(sink.volume.values)
-                self.set_sink_volume(sink, sink_channels, sink_volume)
+                self.set_sink_volume(sink, sink_volume)
                 continue
 
             sink_type = None
@@ -336,12 +323,7 @@ class AudioCtrl(Controller, threading.Thread):
     def control_sink_device(self, sink_device, sink_volume):
         log.info('Identified a new sink device: {}'.format(sink_device.name))
         self.pulse.sink_default_set(sink_device.name)
-
-        try:
-            sink_channels = len(sink_device.volume.values)
-            self.set_sink_volume(sink_device, sink_channels, sink_volume)
-        except:
-            pass
+        self.set_sink_volume(sink_device, sink_volume)
 
     def get_supported_sink_devices(self):
         if self.audio_mode == 'automatic':
@@ -427,7 +409,7 @@ class AudioCtrl(Controller, threading.Thread):
                 self.devices.unsupported_sources[source.name] = source
                 continue
 
-            if source.name == 'combined.monitor':
+            if source.name.endswith('.monitor'):
                 log.debug('Source device: {} is not supported'.format(source.name))
                 self.devices.unsupported_sources[source.name] = source
                 continue
@@ -453,22 +435,23 @@ class AudioCtrl(Controller, threading.Thread):
             source.device = 'pa'
             self.devices.source_devices[source.name] = source
 
-    def set_source_volume(self, source_device, source_channels, volume):
-        source_volume = PulseVolumeInfo(volume, source_channels)
-        log.info('Setting source {} volume to {}'.format(source_device.name, source_volume))
-        self.pulse.source_volume_set(source_device.index, source_volume)
+    def set_source_volume(self, source_device, volume):
+        try:
+            source_channels = len(source_device.volume.values)
+            source_volume = PulseVolumeInfo(volume, source_channels)
+
+            log.info('Setting source {} volume to {}'.format(source_device.name, source_volume))
+            self.pulse.source_volume_set(source_device.index, source_volume)
+
+        except:
+            log.error('Failed to set source {} volume'.format(source_device.name))
                 
     def control_source_device(self, source_device, source_volume):
         log.info('Identified a new {} {} source device: {} ({})'.format(
             source_device.device, source_device.type, source_device.name, source_device.description
             ))
 
-        try:
-            source_channels = len(source_device.volume.values)
-            self.set_source_volume(source_device, source_channels, source_volume)
-        except:
-            pass
-        
+        self.set_source_volume(source_device, source_volume)
         if not source_device.name.startswith('bluez_source'):
             self.unload_loopback_modules(source_name=source_device.name)
 
@@ -643,8 +626,6 @@ class AudioCtrl(Controller, threading.Thread):
                 time.sleep(2)
 
     def close(self):
-        self.unload_combined_sink_modules()
-
         for source_name, source_device in self.devices.source_devices.items():
             if not source_device.active:
                 continue
@@ -653,20 +634,99 @@ class AudioCtrl(Controller, threading.Thread):
                 self.unload_loopback_modules(source_name=source_name)
 
         self.unload_null_sink_modules()
+                
+        self.unload_combined_sink_modules()
 
         self.pulse.close()
 
-class DisplayCtrl(threading.Thread):
+class PluginCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
+        super().__init__(thread_event)
+
+        self.config = config
+        self.thread_event = thread_event
+                    
+    def monitor_output(self, plugin_name, plugin_process):
+        for line in self._read_stdout(plugin_process):
+            log.info('{} Plugin Output: {}'.format(plugin_name, line))
+                    
+    def monitor_error(self, plugin_name, plugin_process):
+        for line in self._read_stderr(plugin_process):
+            log.info('{} Plugin Error: {}'.format(plugin_name, line))
+
+    def run(self):
+        self._get_running_processes()
+        plugins = self.config.audio_receiver.get('plugins', list())
+        for plugin in plugins:
+            try:
+                plugin_meta     = getattr(self.config, plugin)
+                plugin_name     = plugin_meta.get('name', '')
+                plugin_path     = plugin_meta.get('path', '')
+                plugin_restore  = plugin_meta.get('restore', True)
+
+                if plugin_name == '' or plugin_path == '':
+                    log.error('Plugin {} has not been configured'.format(plugin))
+                    continue
+
+                plugin_meta['args'] = list()
+                plugin_meta['args'].append(plugin_path)
+
+                plugin_args = plugin_meta.get('arguments', '').split(' ')
+                for plugin_arg in plugin_args:
+                    if plugin_arg == '':
+                        continue
+
+                    plugin_meta['args'].append(plugin_arg)
+
+                process_cl = ' '.join(plugin_meta['args'])
+                if self._running_processes.get(process_cl):
+                    log.warning('{} is already running!  Attempting to kill the process...'.format(plugin_name))
+                    pid = int(self._running_processes[process_cl]['PID'])
+                    self._kill_running_process(pid)
+
+                log.info('Loading plugin {} with ''{}'''.format(plugin_name, ' '.join(plugin_meta['args'])))
+                plugin_process = self._execute(plugin_meta['args'])
+                self._processes[plugin_name] = {
+                    'process': plugin_process,
+                    'meta': plugin_meta
+                    }
+        
+                output_thread = Thread(
+                    target=self.monitor_output,
+                    args=(plugin_name, plugin_process)
+                    )
+                output_thread.daemon = True
+                output_thread.start()
+                self._threads[plugin_name + '_Output'] = output_thread
+        
+                error_thread = Thread(
+                    target=self.monitor_error,
+                    args=(plugin_name, plugin_process)
+                    )
+                error_thread.daemon = True
+                error_thread.start()
+                self._threads[plugin_name + '_Error'] = error_thread
+
+            except Exception as e:
+                log.exception('Failed to load plugin {} with error {}'.format(plugin, e))
+
+        self._monitor_processes()
+
+    def close(self):
+        self._close()
+
+class DisplayCtrl(Controller, threading.Thread):
+    def __init__(self, thread_event, config):
+        threading.Thread.__init__(self)
+        super().__init__(thread_event)
 
         self.config = config
         self.display_type = os.environ.get('XDG_SESSION_TYPE', None)
-        self.environment = self.get_environment()
         self.thread_event = thread_event
 
         self.ctrl = None
-        if self.environment == 'desktop':
+        if self._environment == 'desktop':
             display_method = None
             log.info('Identified display type: {}'.format(self.display_type))
             
@@ -679,25 +739,14 @@ class DisplayCtrl(threading.Thread):
             else:
                 raise Exception('Display type {} is not currently supported!'.format(self.display_type))
             
-            self.ctrl = display_method(self.config.general.get('resolution', '1280x720'))
-
-    def get_environment(self):
-        with open('/boot/issue.txt', 'r') as infile:
-            data = infile.read()
-            for line in data.splitlines():
-                if 'stage2' in line:
-                    return 'lite'
-                elif 'stage4' in line:
-                    return 'desktop'
-                
-        return None
+            self.ctrl = display_method(self.thread_event, self.config.general.get('resolution', '1280x720'))
 
     def get_diagnostics(self):
         return self.ctrl.get_display_config()
 
     def run(self):
         while not self.thread_event.is_set():
-            if self.environment == 'desktop':
+            if self._environment == 'desktop':
                 try:
                     self.ctrl.enforce_resolution()
                 except:
@@ -709,8 +758,8 @@ class DisplayCtrl(threading.Thread):
         pass
 
 class XDisplay(Controller):
-    def __init__(self, resolution):
-        super().__init__()
+    def __init__(self, thread_event, resolution):
+        super().__init__(thread_event)
         self.resolution = resolution
         
     def get_display_config(self):
@@ -765,8 +814,8 @@ class XDisplay(Controller):
                 ])
 
 class WaylandDisplay(Controller):
-    def __init__(self, resolution):
-        super().__init__()
+    def __init__(self, thread_event, resolution):
+        super().__init__(thread_event)
         self.resolution = resolution
         
     def get_display_config(self):
@@ -817,51 +866,50 @@ class WaylandDisplay(Controller):
 class ProjectMCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config, audio_ctrl, display_ctrl):
         threading.Thread.__init__(self)
-        super().__init__()
+        super().__init__(thread_event)
         
         self.config = config
         self.audio_ctrl = audio_ctrl
         self.display_ctrl = display_ctrl
+        self.thread_event = thread_event
         
         self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
-        self.projectm_process = None
-        
-        config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
-        self.projectm_config = Config(config_path, config_header='[projectm]')
-        
-        self.threads = list()
-        self.thread_event = thread_event
+        self.projectm_restore = self.config.general.get('projectm_restore', False)        
 
-        self.advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
-        self.preset_screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
+        self.screenshot_index = 0
+        self.screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
+        if not os.path.exists(self.screenshot_path):
+            os.makedirs(self.screenshot_path)
+        self.screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
+        self.preset_monitor = self.config.projectm.get('preset_monitor', False)
+        self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
+
+        # ProjectM Configurations
+        config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
+        self.projectm_config = Config(config_path, config_header='[projectm]')
+
         self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
         self.preset_display_duration = self.projectm_config.projectm['projectm.displayduration']
-        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace(
-            '${application.dir}', self.projectm_path
-            )
-        self.preset_screenshot_index = 0
-        self.preset_screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
-        if not os.path.exists(self.preset_screenshot_path):
-            os.makedirs(self.preset_screenshot_path)
+        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace('${application.dir}', self.projectm_path)
             
-    def _take_screenshot(self, preset):
+    def take_screenshot(self, preset):
         preset_name = os.path.splitext(preset)[0]
         preset_name_filtered = preset_name.split(' ', 1)[1]
         preset_screenshot_name = preset_name_filtered + '.png'
-        if not preset_screenshot_name in os.listdir(self.preset_screenshot_path):
-            if self.preset_screenshot_index > 0:
-                time.sleep(self.projectm_config.projectm['projectm.transitionduration'])
+        if not preset_screenshot_name in os.listdir(self.screenshot_path):
+            if self.screenshot_index > 0:
+                time.sleep(self.preset_display_duration - 7)
                 log.info('Taking a screenshot of {0}'.format(preset))
-                screenshot_path = os.path.join(self.preset_screenshot_path, preset_screenshot_name)
+                screenshot_path = os.path.join(self.screenshot_path, preset_screenshot_name)
                 self._execute_managed(['grim', screenshot_path])
                             
-            self.preset_screenshot_index += 1
+            self.screenshot_index += 1
                     
-    def _monitor_output(self):
+    def monitor_output(self, projectm_process):
         preset_regex = r'Displaying preset: (?P<name>.*)$'
-        for line in self._read_stderr(self.projectm_process):
+        for line in self._read_stderr(projectm_process):
             log.debug('ProjectM Output: {0}'.format(line))
             
             try:
@@ -873,13 +921,13 @@ class ProjectMCtrl(Controller, threading.Thread):
                     self.preset_start = time.time()
                 
                     # Take a preview screenshot
-                    if self.display_ctrl.environment == 'desktop':
-                        if self.preset_screenshots_enabled and self.audio_ctrl.source_device:
-                            self._take_screenshot(preset)
+                    if self.display_ctrl._environment == 'desktop':
+                        if self.screenshots_enabled and self.audio_ctrl.source_device:
+                            self.take_screenshot(preset)
             except:
-                log.exception('Failed to process output')
+                log.exception('Failed to process output: {}'.format(line))
             
-    def _monitor_hang(self):
+    def monitor_hang(self):
         while not self.thread_event.is_set():
             if self.preset_start == 0:
                 continue
@@ -887,96 +935,94 @@ class ProjectMCtrl(Controller, threading.Thread):
                 duration = time.time() - self.preset_start
                 if duration >= (self.preset_display_duration + 5):
                     log.warning('The visualization has not changed in the alloted timeout!')
+
                     log.info('Manually transitioning to the next visualization...')
                     xautomation_process = self._execute(['xte'])
                     xautomation_process.communicate(input='key n\n')
                 
             time.sleep(1)
-            
-    def _manage_playlist(self):
-        if self.advanced_shuffle == True:
-            log.info('Performing smart randomization on presets...')
-            presets = list()
-            for root, dirs, files in os.walk(self.preset_path):
-                for name in files:
-                    preset_path = os.path.join(root, name)
-                    if not preset_path in presets:
-                        presets.append(preset_path)
-                        
-            random.shuffle(presets)
-            index = 0
-            for preset in presets:
-                index += 1
-                idx_pad = format(index, '06')
-                preset_root, preset_name = preset.rsplit('/', 1)
-                if not re.match(r'^\d{6}\s.*?\.milk', preset_name, re.I):
-                    preset_name_stripped = preset_name
-                else:
-                    preset_name_stripped = preset_name.split(' ', 1)[1]
+
+    def index_presets(self, presets):
+        index = 0
+        for preset in presets:
+            index += 1
+            idx_pad = format(index, '06')
+            preset_root, preset_name = preset.rsplit('/', 1)
+            if not re.match(r'^\d{6}\s.*?\.milk', preset_name, re.I):
+                preset_name_stripped = preset_name
+            else:
+                preset_name_stripped = preset_name.split(' ', 1)[1]
                 
-                dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
-                log.debug('Renaming {0} to {1}'.format(preset, dst))
-                try:
-                    os.rename(preset, dst)
-                except Exception as e:
-                    log.error('Failed to rename preset {0}: {1}'.format(preset, e))
+            dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
+            try:
+                os.rename(preset, dst)
+            except Exception as e:
+                log.error('Failed to rename preset {0}: {1}'.format(preset, e))
+
+            
+    def manage_playlist(self):
+        presets = list()
+        for root, dirs, files in os.walk(self.preset_path):
+            for name in files:
+                preset_path = os.path.join(root, name)
+                if not preset_path in presets:
+                    presets.append(preset_path)
+
+        if self.preset_advanced_shuffle == True:
+            random.shuffle(presets)
+
+        self.index_presets(presets)
                 
         
     def run(self, beatSensitivity=2.0):   
-        self._manage_playlist()
+        self.manage_playlist()
     
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
-        self.projectm_process = self._execute(
-            [app_path, '--beatSensitivity=' + str(beatSensitivity)]
-            )
         
+        projectm_meta = {
+            'path': app_path,
+            'args': [app_path, '--beatSensitivity=' + str(beatSensitivity)],
+            'restore': self.projectm_restore
+        }
+
+        projectm_process = self._execute(projectm_meta['args'])
+        self._processes['ProjectMDSL'] = {
+            'process': projectm_process,
+            'meta': projectm_meta
+            }
+
         # Start thread to monitor preset output to ensure
-        # there are no hangs (TODO: Report to ProjectM)
-        monitor_thread = Thread(
-            target=self._monitor_output,
+        # there are no hangs
+        output_thread = Thread(
+            target=self.monitor_output,
+            args=(projectm_process,)
             )
-        monitor_thread.daemon = True
-        monitor_thread.start()
-        self.threads.append(monitor_thread)
+        output_thread.daemon = True
+        output_thread.start()
+        self._threads['ProjectMDSL_Output'] = output_thread
         
-        # Start thread to trigger the next preset 
-        # in the event of a hang
-        hang_thread = Thread(
-            target=self._monitor_hang,
-            )
-        hang_thread.daemon = True
-        hang_thread.start()
-        self.threads.append(hang_thread)
+        if self.preset_monitor:
+            # Start thread to trigger the next preset 
+            # in the event of a hang
+            hang_thread = Thread(
+                target=self.monitor_hang,
+                )
+            hang_thread.daemon = True
+            hang_thread.start()
+            self._threads['ProjectMDSL_Hang'] = hang_thread
 
-        while not self.thread_event.is_set():
-            if self.projectm_process.poll() != None:
-                log.warning(
-                    'ProjectM has exited with return code {}'.format(
-                        self.projectm_process.returncode
-                        ))
+        halt_on_exit = False
+        if not self.projectm_restore:
+            halt_on_exit = True
 
-                if not self.config.general.get('projectm_restore', False):
-                    log.warning('Stopping ProjectMAR due to ProjectMDSL exit')
-                    self.thread_event.set()
-
-                else:
-                    log.info('Executing ProjectMSDL and monitorring presets for hangs...')
-                    self.projectm_process = self._execute(
-                        [app_path, '--beatSensitivity=' + str(beatSensitivity)]
-                        )
-            time.sleep(1)
-
-        for thread in self.threads:
-            thread.join()
-            
-        self.projectm_process.kill()
+        self._monitor_processes(halt_on_exit=halt_on_exit)
 
     def close(self):
-        pass
+        self._close()
 
-class Bluetooth(Controller):
-    def __init__(self):
-        super().__init__()
+class BluetoothCtrl(Controller):
+    def __init__(self, thread_event):
+        super().__init__(thread_event)
         
     def get_connected_devices(self):
         bluetoothctl =  self._execute(['bluetoothctl', 'devices', 'Connected'])

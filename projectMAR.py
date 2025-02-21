@@ -10,7 +10,7 @@ from threading import Thread, Event
 
 from lib.config import Config, APP_ROOT
 from lib.log import log_init
-from lib.controllers import AudioCtrl, DisplayCtrl, ProjectMCtrl
+from lib.controllers import AudioCtrl, DisplayCtrl, ProjectMCtrl, PluginCtrl
 
 log = logging.getLogger()
     
@@ -32,9 +32,14 @@ def main(config):
         ))
 
     controllers = list()
+
     audio_ctrl = AudioCtrl(thread_event, config)
     if config.general.get('audio_receiver_enabled', True):
         controllers.append(audio_ctrl)
+
+        plugin_ctrl = PluginCtrl(thread_event, config)
+        if config.audio_receiver.get('plugin_ctrl', False):
+            controllers.append(plugin_ctrl)
 
     display_ctrl = DisplayCtrl(thread_event, config)
     if config.general.get('display_enforcement', True):

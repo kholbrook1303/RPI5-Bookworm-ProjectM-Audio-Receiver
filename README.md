@@ -10,6 +10,52 @@ Growing up I used to enjoy using Winamp with the Milkdrop visualizations built b
 
 Originally the intention was to add a video signal to the Phono input of my Marantz receiver that would react to the rooms surrounding audio.  As it progressed, I figure why not also control the sources/sinks of the Raspberry pi to support various audio input devices (Line in, Mic, Bluetooth, etc...).
 
+## ProjectMAR News:
+
+### In this latest update:
+
+*Be aware that going forward I am not going to provide instructions for system startup of plugin modules as plugin control has been integrated into ProjectM Audio Receiver.  You may still disable plugin control (Which is currently the default while users migrate).  Then you may set your own startup methods if you prefer.*
+
+- Various bug fixes and general cleanup
+
+- Plugins can now be defined and controlled via configuration
+  ```
+  [audio_receiver]
+  plugin_ctrl=True
+  plugins=plugin1,plugin2
+
+  [plugin1]
+  name=Shairport-Sync
+  path=/usr/local/bin/shairport-sync
+  arguments=
+  restore=
+  ```
+
+### Recently there have been many improvmements:
+
+- Priority sink definitions for manual mode
+  ```
+  [manual]
+  sink_devices=sink1,sink2,sink3,sink4
+  source_devices=source1,source2,source3
+  combined_sink_volume=1.0
+  
+  [sink1]
+  name=alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo
+  type=external
+  volume=1.0
+  ```
+
+- Ability to leverage multiple sinks/sources simultaniously
+  ```
+  [audio_receiver]
+  allow_multiple_sinks=True
+  allow_multiple_sources=True
+  ```
+
+- All audio is routed to a dedicated project-mar sink so that the sink monitor can be set as the default source allowing projectM reactivity for any input scenario.
+
+
 ## Screenshots
 ![ProjectMAR Screenshot 1](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview1.png)
 ![ProjectMAR Screenshot 2](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview2.png)
@@ -143,11 +189,12 @@ projectM.meshY = 32
 
 For OS Lite enable fullscreen exclusive mode.
 
-***Note:** I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.*
+***Note:** I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.  Furthermore when exclusive mode is enabled but not fullscreen, you will get a cursor that can only be removed by hitting escape.  While this also sounds strange, only set the window size resolution.*
 ```
+window.fullscreen = true
 window.fullscreen.exclusiveMode = true
-window.fullscreen.width = 1280
-window.fullscreen.height = 720
+window.width = 1280
+window.height = 720
 ```
 For OS Desktop enable fullscreen.
 ```
@@ -291,7 +338,7 @@ If all is well close ProjectMSDL
 alt+F4 (or 'sudo killall projectMSDL' from terminal)
 ```
 
-## Environment Specific Instructions
+## Environment Specific Startup Instructions
 
   <details>
   <summary><b>RPI OS Desktop Instructions</b></summary>
@@ -322,16 +369,6 @@ alt+F4 (or 'sudo killall projectMSDL' from terminal)
   Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
   ```
   sudo raspi-config
-  ```
-
-  Enfore a resolution for Raspberry Pi OS Lite.  Edit the boot cmdline.txt.
-  ```
-  sudo nano /boot/firmware/cmdline.txt
-  ```
-
-  Add the device, resolution, and refresh rate to the end of the cmdline.txt
-  ```
-  video=HDMI-A-1:1280x720M@60 video=HDMI-A-2:1280x720M@60
   ```
 
   ### Create a startup service
@@ -463,9 +500,11 @@ sudo apt install --no-install-recommends build-essential git autoconf automake l
 ### Obtain the latest source
 Clone and build shairport-sync
 ```
+
 cd ~
-git clone https://github.com/mikebrady/shairport-sync.git
-cd shairport-sync
+wget https://github.com/mikebrady/shairport-sync/archive/refs/tags/4.3.7.tar.gz
+tar xf 4.3.7.tar.gz
+cd ~/shairport-sync-4.3.7/
 autoreconf -fi
 ./configure --sysconfdir=/etc --with-alsa \
     --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
@@ -479,8 +518,9 @@ sudo make install
 Clone and build nqptp
 ```
 cd ~
-git clone https://github.com/mikebrady/nqptp.git
-cd nqptp
+wget https://github.com/mikebrady/nqptp/archive/refs/tags/1.2.4.tar.gz
+tar xf 1.2.4.tar.gz
+cd ~/nqptp-1.2.4
 autoreconf -fi
 ./configure --with-systemd-startup
 make
@@ -493,54 +533,20 @@ sudo systemctl enable nqptp
 sudo systemctl start nqptp
 ```
 
-## Environment Specific Instructions
+## Startup Instructions
+Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+```
+plugin_ctrl=True
+plugins=plugin1
+```
 
-  <details>
-  <summary><b>RPI OS Desktop Instructions</b></summary>
-  ### Setup the auto start on boot
-
-  Add Shairport to autostart
-  ```
-  sudo nano /etc/xdg/autostart/shairport.desktop
-  ```
-
-  Add the following configuration
-  ```
-  [Desktop Entry]
-  Name=Shairport
-  Exec=/usr/local/bin/shairport-sync
-  Type=Application
-  ```
-  </details>
-
-  <details>
-  <summary><b>RPI OS Lite Instructions</b></summary>
-
-  Create a service by running
-  ```
-  sudo nano /etc/systemd/user/shairport.service
-  ```
-  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes
-  ```
-  [Unit]
-  Description=Shairport-Sync
-
-  [Service]
-  Type=simple
-  ExecStart=/usr/local/bin/shairport-sync
-  Restart=on-failure
-
-  [Install]
-  WantedBy=default.target
-  ```
-
-  Enable and start the service
-  ```
-  systemctl --user enable shairport
-  systemctl --user start shairport
-  ```
-  </details>
-  <br/>
+Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters replacing the 'USER' with your username
+```
+[plugin1]
+name=Shairport-Sync
+path=/usr/local/bin/shairport-sync
+arguments=
+```
 
 </details>
 
@@ -573,62 +579,31 @@ https://plex.tv/claim
 
 Paste the claim code in the terminal window and proceed with naming your player
 
-## Environment Specific Instructions
+## Startup Instructions
 
-  <details>
-  <summary><b>RPI OS Desktop Instructions</b></summary>
-  
-  ### Setup the auto start on boot
+Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+```
+plugin_ctrl=True
+plugins=plugin1,plugin2
+```
 
-  Add Plexamp to autostart
-  ```
-  sudo nano /etc/xdg/autostart/plexamp.desktop
-  ```
+Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters replacing the 'USER' with your username
+```
+[plugin2]
+name=PlexAmp
+path=/usr/bin/node
+arguments=/home/<USER>/plexamp/js/index.js
+```
 
-  Add the following configuration (Make sure to change the USERNAME variable)
-  ```
-  [Desktop Entry]
-  Name=Plexamp
-  Exec=/usr/bin/node /home/<USERNAME>/plexamp/js/index.js
-  Type=Application
-  ```
-  </details>
+## Instructions for casting
+Once running goto PlexAmp on your mobile device and select the cast button.  In the menu of systems select the hostname of your Raspberry Pi to broadcast music.
 
-  <details>
-  <summary><b>RPI OS Lite Instructions</b></summary>
-
-  Create a service by running
-  ```
-  sudo nano /etc/systemd/user/plexamp.service
-  ```
-
-  Add the following contents, then press 'ctrl+x' to exit and press 'y' to accept changes (Make sure to change the USERNAME variable)
-  ```
-  [Unit]
-  Description=Plexamp
-
-  [Service]
-  Type=simple
-  ExecStart=/usr/bin/node /home/<USERNAME>/plexamp/js/index.js
-  Restart=on-failure
-
-  [Install]
-  WantedBy=default.target
-  ```
-
-  Enable and start the service
-  ```
-  systemctl --user enable plexamp
-  systemctl --user start plexamp
-  ```
-  </details>
-<br/>
-
+## Instructions for using without casting
 On a system with a web browser navigate to your Plexamp system
 ```
 http://<RaspberryPi_IP>:32500
 ```
 
-Login with your PlexPass credentials
+Login with your PlexPass credentials and you can now control PlexAmp music on your pi
 
 </details>
