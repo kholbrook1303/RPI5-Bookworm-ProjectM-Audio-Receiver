@@ -871,40 +871,41 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.config = config
         self.audio_ctrl = audio_ctrl
         self.display_ctrl = display_ctrl
+        self.thread_event = thread_event
         
         self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
-        
-        config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
-        self.projectm_config = Config(config_path, config_header='[projectm]')
-        
-        self.thread_event = thread_event
+        self.projectm_restore = self.config.general.get('projectm_restore', False)        
 
-        self.advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
-        self.preset_screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
+        self.screenshot_index = 0
+        self.screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
+        if not os.path.exists(self.screenshot_path):
+            os.makedirs(self.screenshot_path)
+        self.screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
+        self.preset_monitor = self.config.projectm.get('preset_monitor', False)
+        self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
+
+        # ProjectM Configurations
+        config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
+        self.projectm_config = Config(config_path, config_header='[projectm]')
+
         self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
         self.preset_display_duration = self.projectm_config.projectm['projectm.displayduration']
-        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace(
-            '${application.dir}', self.projectm_path
-            )
-        self.preset_screenshot_index = 0
-        self.preset_screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
-        if not os.path.exists(self.preset_screenshot_path):
-            os.makedirs(self.preset_screenshot_path)
+        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace('${application.dir}', self.projectm_path)
             
     def take_screenshot(self, preset):
         preset_name = os.path.splitext(preset)[0]
         preset_name_filtered = preset_name.split(' ', 1)[1]
         preset_screenshot_name = preset_name_filtered + '.png'
-        if not preset_screenshot_name in os.listdir(self.preset_screenshot_path):
-            if self.preset_screenshot_index > 0:
-                time.sleep(self.projectm_config.projectm['projectm.transitionduration'])
+        if not preset_screenshot_name in os.listdir(self.screenshot_path):
+            if self.screenshot_index > 0:
+                time.sleep(self.preset_display_duration - 7)
                 log.info('Taking a screenshot of {0}'.format(preset))
-                screenshot_path = os.path.join(self.preset_screenshot_path, preset_screenshot_name)
+                screenshot_path = os.path.join(self.screenshot_path, preset_screenshot_name)
                 self._execute_managed(['grim', screenshot_path])
                             
-            self.preset_screenshot_index += 1
+            self.screenshot_index += 1
                     
     def monitor_output(self, projectm_process):
         preset_regex = r'Displaying preset: (?P<name>.*)$'
@@ -920,11 +921,11 @@ class ProjectMCtrl(Controller, threading.Thread):
                     self.preset_start = time.time()
                 
                     # Take a preview screenshot
-                    if self.display_ctrl.environment == 'desktop':
-                        if self.preset_screenshots_enabled and self.audio_ctrl.source_device:
+                    if self.display_ctrl._environment == 'desktop':
+                        if self.screenshots_enabled and self.audio_ctrl.source_device:
                             self.take_screenshot(preset)
             except:
-                log.exception('Failed to process output')
+                log.exception('Failed to process output: {}'.format(line))
             
     def monitor_hang(self):
         while not self.thread_event.is_set():
@@ -934,39 +935,43 @@ class ProjectMCtrl(Controller, threading.Thread):
                 duration = time.time() - self.preset_start
                 if duration >= (self.preset_display_duration + 5):
                     log.warning('The visualization has not changed in the alloted timeout!')
+
                     log.info('Manually transitioning to the next visualization...')
                     xautomation_process = self._execute(['xte'])
                     xautomation_process.communicate(input='key n\n')
                 
             time.sleep(1)
+
+    def index_presets(self, presets):
+        index = 0
+        for preset in presets:
+            index += 1
+            idx_pad = format(index, '06')
+            preset_root, preset_name = preset.rsplit('/', 1)
+            if not re.match(r'^\d{6}\s.*?\.milk', preset_name, re.I):
+                preset_name_stripped = preset_name
+            else:
+                preset_name_stripped = preset_name.split(' ', 1)[1]
+                
+            dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
+            try:
+                os.rename(preset, dst)
+            except Exception as e:
+                log.error('Failed to rename preset {0}: {1}'.format(preset, e))
+
             
     def manage_playlist(self):
-        if self.advanced_shuffle == True:
-            log.info('Performing smart randomization on presets...')
-            presets = list()
-            for root, dirs, files in os.walk(self.preset_path):
-                for name in files:
-                    preset_path = os.path.join(root, name)
-                    if not preset_path in presets:
-                        presets.append(preset_path)
-                        
+        presets = list()
+        for root, dirs, files in os.walk(self.preset_path):
+            for name in files:
+                preset_path = os.path.join(root, name)
+                if not preset_path in presets:
+                    presets.append(preset_path)
+
+        if self.preset_advanced_shuffle == True:
             random.shuffle(presets)
-            index = 0
-            for preset in presets:
-                index += 1
-                idx_pad = format(index, '06')
-                preset_root, preset_name = preset.rsplit('/', 1)
-                if not re.match(r'^\d{6}\s.*?\.milk', preset_name, re.I):
-                    preset_name_stripped = preset_name
-                else:
-                    preset_name_stripped = preset_name.split(' ', 1)[1]
-                
-                dst = os.path.join(preset_root, idx_pad + ' ' + preset_name_stripped)
-                log.debug('Renaming {0} to {1}'.format(preset, dst))
-                try:
-                    os.rename(preset, dst)
-                except Exception as e:
-                    log.error('Failed to rename preset {0}: {1}'.format(preset, e))
+
+        self.index_presets(presets)
                 
         
     def run(self, beatSensitivity=2.0):   
@@ -974,11 +979,10 @@ class ProjectMCtrl(Controller, threading.Thread):
     
         app_path = os.path.join(APP_ROOT, 'projectMSDL')
         
-        projectm_restore = self.config.general.get('projectm_restore', False)
         projectm_meta = {
             'path': app_path,
             'args': [app_path, '--beatSensitivity=' + str(beatSensitivity)],
-            'restore': projectm_restore
+            'restore': self.projectm_restore
         }
 
         projectm_process = self._execute(projectm_meta['args'])
@@ -986,9 +990,9 @@ class ProjectMCtrl(Controller, threading.Thread):
             'process': projectm_process,
             'meta': projectm_meta
             }
-        
+
         # Start thread to monitor preset output to ensure
-        # there are no hangs (TODO: Report to ProjectM)
+        # there are no hangs
         output_thread = Thread(
             target=self.monitor_output,
             args=(projectm_process,)
@@ -997,17 +1001,18 @@ class ProjectMCtrl(Controller, threading.Thread):
         output_thread.start()
         self._threads['ProjectMDSL_Output'] = output_thread
         
-        # Start thread to trigger the next preset 
-        # in the event of a hang
-        hang_thread = Thread(
-            target=self.monitor_hang,
-            )
-        hang_thread.daemon = True
-        hang_thread.start()
-        self._threads['ProjectMDSL_Hang'] = hang_thread
+        if self.preset_monitor:
+            # Start thread to trigger the next preset 
+            # in the event of a hang
+            hang_thread = Thread(
+                target=self.monitor_hang,
+                )
+            hang_thread.daemon = True
+            hang_thread.start()
+            self._threads['ProjectMDSL_Hang'] = hang_thread
 
         halt_on_exit = False
-        if not projectm_restore:
+        if not self.projectm_restore:
             halt_on_exit = True
 
         self._monitor_processes(halt_on_exit=halt_on_exit)
