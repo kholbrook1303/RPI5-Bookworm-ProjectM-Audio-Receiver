@@ -716,17 +716,17 @@ class PluginCtrl(Controller, threading.Thread):
     def close(self):
         self._close()
 
-class DisplayCtrl(threading.Thread):
+class DisplayCtrl(Controller, threading.Thread):
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
+        super().__init__(thread_event)
 
         self.config = config
         self.display_type = os.environ.get('XDG_SESSION_TYPE', None)
-        self.environment = self.get_environment()
         self.thread_event = thread_event
 
         self.ctrl = None
-        if self.environment == 'desktop':
+        if self._environment == 'desktop':
             display_method = None
             log.info('Identified display type: {}'.format(self.display_type))
             
@@ -741,23 +741,12 @@ class DisplayCtrl(threading.Thread):
             
             self.ctrl = display_method(self.thread_event, self.config.general.get('resolution', '1280x720'))
 
-    def get_environment(self):
-        with open('/boot/issue.txt', 'r') as infile:
-            data = infile.read()
-            for line in data.splitlines():
-                if 'stage2' in line:
-                    return 'lite'
-                elif 'stage4' in line:
-                    return 'desktop'
-                
-        return None
-
     def get_diagnostics(self):
         return self.ctrl.get_display_config()
 
     def run(self):
         while not self.thread_event.is_set():
-            if self.environment == 'desktop':
+            if self._environment == 'desktop':
                 try:
                     self.ctrl.enforce_resolution()
                 except:
