@@ -98,11 +98,12 @@ class Controller:
                             process_name, attr['process'].returncode
                             ))
 
-                    if halt_on_exit:
+                    if halt_on_exit or attr['process'].returncode == 0:
                         log.warning('Stopping ProjectMAR due to {} exit'.format(process_name))
                         self._thread_event.set()
 
-                    elif attr['meta']['restore']:
+                    elif attr['meta']['restore'] and attr['process'].returncode != 0:
+                        log.info('Starting {}...'.format(attr['meta']['args']))
                         process = self._execute(attr['meta']['args'])
                         attr['process'] = process
 
