@@ -644,8 +644,6 @@ class AudioCtrl(Controller, threading.Thread):
                 time.sleep(2)
 
     def close(self):
-        self.unload_combined_sink_modules()
-
         for source_name, source_device in self.devices.source_devices.items():
             if not source_device.active:
                 continue
@@ -654,6 +652,8 @@ class AudioCtrl(Controller, threading.Thread):
                 self.unload_loopback_modules(source_name=source_name)
 
         self.unload_null_sink_modules()
+                
+        self.unload_combined_sink_modules()
 
         self.pulse.close()
 
