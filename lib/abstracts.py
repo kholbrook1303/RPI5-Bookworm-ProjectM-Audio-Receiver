@@ -74,7 +74,7 @@ class Controller:
     @returns a boolean indicating whether the process execution failed
     """
     def _execute_managed(self, args, shell=False):
-        log.debug('Running command: {}'.format(args))
+        log.debug('Running command {}'.format(args))
         process = Popen(args, universal_newlines=True, shell=shell)
         stdout,stderr = process.communicate()
         
@@ -84,7 +84,7 @@ class Controller:
             log.error(stderr)
             return False
         if process.returncode != 0:
-            log.error('command return code: {}'.format(process.returncode))
+            log.error('command {} return code: {}'.format(args, process.returncode))
             return False
         
         return True
