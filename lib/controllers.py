@@ -14,36 +14,15 @@ from lib.config import APP_ROOT, Config
 
 log = logging.getLogger()
 
-class BluetoothDevice:
-    def __init__(self, device_name, mac_address):
+class PluginDevice:
+    def __init__(self, device_name, device_index, device_meta=None):
         self.name           = device_name
         self.description    = None
-        self.mac_address    = mac_address
-        self.index          = None
+        self.index          = device_index
         self.active         = False
-        self.device         = 'bluetooth'
+        self.device         = None
         self.type           = 'aux'
-        self.meta           = None
-
-class PlexAmpDevice:
-    def __init__(self, device_name, index, meta):
-        self.name           = device_name
-        self.description    = None
-        self.index          = index
-        self.active         = False
-        self.device         = 'plexamp'
-        self.type           = 'aux'
-        self.meta           = meta
-     
-class AirPlayDevice:
-    def __init__(self, device_name, index, meta):
-        self.name           = device_name
-        self.description    = None
-        self.index          = index
-        self.active         = False
-        self.device         = 'airplay'
-        self.type           = 'aux'
-        self.meta           = meta
+        self.meta           = device_meta
 
 class DeviceCatalog:
     def __init__(self):
@@ -232,9 +211,11 @@ class AudioCtrl(Controller, threading.Thread):
                 if not self.devices.plugin_devices.get(app):
                     plugin_device = None
                     if app == 'node':
-                        plugin_device = PlexAmpDevice(app, plugin.index, plugin)
+                        plugin_device = PluginDevice(app, plugin.index, plugin)
+                        plugin_device.device = 'plexamp'
                     elif app == 'shairport-sync':
-                        plugin_device = AirPlayDevice(app, plugin.index, plugin)
+                        plugin_device = PluginDevice(app, plugin.index, plugin)
+                        plugin_device.device = 'airplay'
 
                     if not plugin_device:
                         log.warning('Unable to identify plugin device: {}'.format(plugin.__dict__))
@@ -247,7 +228,8 @@ class AudioCtrl(Controller, threading.Thread):
         bluetooth_devices = list()
 
         for mac_address, device_name in self.bluetoothCtrl.get_connected_devices():
-            bluetooth_device = BluetoothDevice(device_name, mac_address)
+            bluetooth_device = PluginDevice(device_name, mac_address)
+            bluetooth_device.device = 'bluetooth'
             bluetooth_devices.append(bluetooth_device)
             
         # Check for any disconnected bluetooth devices
