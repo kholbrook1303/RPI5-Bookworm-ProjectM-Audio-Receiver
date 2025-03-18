@@ -3,7 +3,7 @@
 ## ProjectMAR News:
 
 ### In this latest update:
-${\color{red}This~update~can~break~your~existing~configuration~so~take~caution~when~updating}$
+<i><b>Note: </b>This update can break your existing configuration so take caution when updating</i>
 
 - Added an option to manage card profiles.  This is primarily for those using a DAC/ADC hat to ensure the input/output profile is loaded accordingly.
 
@@ -255,9 +255,9 @@ projectM.texturePath = /opt/ProjectMSDL/textures
 
 <details>
 <summary><b>GitHub Repo - projectM-presets-rpi5</b> <i>Presets and textures repository managed by mickabrig7, and benchmarked for the Raspberry Pi 5</i></summary>
-*Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
 
 ### Download and move the presets and textures
+*Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
 ```
 cd ~
 git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
