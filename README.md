@@ -607,3 +607,49 @@ http://<RaspberryPi_IP>:32500
 Login with your PlexPass credentials and you can now control PlexAmp music on your pi
 
 </details>
+
+<details>
+<summary><b>Setup Spotify Receiver</b> <i>(Requires Spotify Premium)</i></summary>
+
+### Get Spotifyd
+
+```
+cd ~
+wget https://github.com/Spotifyd/spotifyd/releases/download/v0.4.0/spotifyd-linux-aarch64-default.tar.gz
+tar xzf spotifyd-linux-aarch64-default.tar.gz
+chmod +x spotifyd
+sudo chown root:root spotifyd
+sudo mv spotifyd /usr/local/bin/spotifyd
+```
+
+### Advanced Configurations
+
+Spotify should work out of the box with defaults but you can also fine tune your setup.  To do so first create a configuration file in /etc/
+```
+sudo nano /etc/spotifyd.conf
+```
+
+Goto the following site and you can see an example confirguration to copy and paste.  Any configurations you want to customize, just uncomment the parameter.
+
+https://docs.spotifyd.rs/configuration/index.html
+
+## Startup Instructions
+
+Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+```
+plugin_ctrl=True
+plugins=plugin1,plugin2,plugin3
+```
+
+Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters
+```
+[plugin3]
+name=Spotify
+path=/usr/local/bin/spotifyd
+arguments=--no-daemon --backend pulseaudio
+```
+
+## Instructions for casting
+Once running goto Spotify on your mobile device and select the devices button.  In the menu of systems select the hostname of your Raspberry Pi to broadcast music.
+
+</details>

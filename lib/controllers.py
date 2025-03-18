@@ -216,6 +216,9 @@ class AudioCtrl(Controller, threading.Thread):
                     elif app == 'shairport-sync':
                         plugin_device = PluginDevice(app, plugin.index, plugin)
                         plugin_device.device = 'airplay'
+                    elif app == 'spotifyd':
+                        plugin_device = PluginDevice(app, plugin.index, plugin)
+                        plugin_device.device = 'spotify'
 
                     if not plugin_device:
                         log.warning('Unable to identify plugin device: {}'.format(plugin.__dict__))
