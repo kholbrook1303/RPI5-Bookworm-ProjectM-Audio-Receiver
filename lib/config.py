@@ -30,6 +30,8 @@ class Config:
                         value = config.get(section, name).split(",")
                     elif name == "plugins":
                         value = config.get(section, name).split(",")
+                    elif name == "cards":
+                        value = config.get(section, name).split(",")
                     elif self._is_str_bool(str_value):
                         value = config.getboolean(section, name)
                     elif self._is_str_int(str_value):
