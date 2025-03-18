@@ -877,7 +877,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.thread_event = thread_event
         
         self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
-        self.projectm_restore = self.config.general.get('projectm_restore', False)        
+        self.projectm_restore = self.config.projectm.get('projectm_restore', False)      
 
         self.screenshot_index = 0
         self.screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
