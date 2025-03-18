@@ -876,7 +876,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.display_ctrl = display_ctrl
         self.thread_event = thread_event
         
-        self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
+        self.projectm_path = self.config.projectm.get('projectm_path', '/opt/ProjectMSDL')
         self.projectm_restore = self.config.projectm.get('projectm_restore', False)      
 
         self.screenshot_index = 0
@@ -980,7 +980,7 @@ class ProjectMCtrl(Controller, threading.Thread):
     def run(self, beatSensitivity=2.0):   
         self.manage_playlist()
     
-        app_path = os.path.join(APP_ROOT, 'projectMSDL')
+        app_path = os.path.join(self.projectm_path, 'projectMSDL')
         
         projectm_meta = {
             'path': app_path,
