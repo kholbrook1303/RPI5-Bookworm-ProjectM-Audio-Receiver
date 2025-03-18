@@ -886,6 +886,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
+        self.preset_index = self.config.projectm.get('preset_index', False)
         self.preset_monitor = self.config.projectm.get('preset_monitor', False)
         self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
 
@@ -961,7 +962,6 @@ class ProjectMCtrl(Controller, threading.Thread):
                 os.rename(preset, dst)
             except Exception as e:
                 log.error('Failed to rename preset {0}: {1}'.format(preset, e))
-
             
     def manage_playlist(self):
         presets = list()
@@ -974,8 +974,10 @@ class ProjectMCtrl(Controller, threading.Thread):
         if self.preset_advanced_shuffle == True:
             random.shuffle(presets)
 
-        self.index_presets(presets)
-                
+        if not self.preset_advanced_shuffle and not self.preset_index:
+            pass
+        else:
+            self.index_presets(presets)
         
     def run(self, beatSensitivity=2.0):   
         self.manage_playlist()
