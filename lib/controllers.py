@@ -26,6 +26,7 @@ class PluginDevice:
 
 class DeviceCatalog:
     def __init__(self):
+        self.cards                  = dict()
         self.modules                = dict()
         self.sink_cards             = dict()
         self.sink_devices           = dict()
@@ -44,6 +45,7 @@ class AudioCtrl(Controller, threading.Thread):
         self.thread_event = thread_event
         
         self.audio_mode             = self.config.audio_receiver.get('audio_mode', 'automatic')
+        self.card_ctrl              = self.config.audio_receiver.get('card_ctrl', False)
         self.io_device_mode         = self.config.audio_receiver.get('io_device_mode', 'aux')
         self.allow_multiple_sinks   = self.config.audio_receiver.get('allow_multiple_sinks', True)
         self.allow_multiple_sources = self.config.audio_receiver.get('allow_multiple_sources', True)
@@ -108,6 +110,29 @@ class AudioCtrl(Controller, threading.Thread):
         self.update_plugin_devices()
 
         return self.devices.__dict__
+
+    def control_card_devices(self):
+        for card_item in self.config.audio_receiver.get("cards", list()):
+            card_config = getattr(self.config, card_item)
+            for card_name, card in self.devices.cards.items():
+                if card_name != card_config['name']:
+                    continue
+
+                if card.profile_active.name == card_config['profile']:
+                    continue
+
+                for card_profile in card.profile_list:
+                    if card_profile.name != card_config['profile']:
+                        continue
+
+                    log.info('Changing profile for card {} from {} to {}'.format(card.name, card.profile_active.name, card_config['profile']))
+                    self.pulse.card_profile_set(card, card_profile)
+
+    def update_card_devices(self):
+        cards = self.pulse.card_list()
+
+        for card in cards:
+            self.devices.cards[card.name] = card
 
     def get_module_arguments(self, module):
         module.args = dict()
@@ -523,6 +548,10 @@ class AudioCtrl(Controller, threading.Thread):
                     yield supported_source
 
     def handle_devices(self):
+        self.update_card_devices()
+        if self.card_ctrl:
+            self.control_card_devices()
+
         self.update_sink_devices()
 
         active_sinks = list()
