@@ -725,6 +725,7 @@ class PluginCtrl(Controller, threading.Thread):
                 log.info('Loading plugin {} with ''{}'''.format(plugin_name, ' '.join(plugin_meta['args'])))
                 plugin_process = self._execute(plugin_meta['args'])
                 self._processes[plugin_name] = {
+                    'name': plugin_name,
                     'process': plugin_process,
                     'meta': plugin_meta
                     }
@@ -1026,6 +1027,7 @@ class ProjectMCtrl(Controller, threading.Thread):
 
         projectm_process = self._execute(projectm_meta['args'])
         self._processes['ProjectMDSL'] = {
+            'name': 'projectMSDL',
             'process': projectm_process,
             'meta': projectm_meta
             }
