@@ -111,28 +111,33 @@ class AudioCtrl(Controller, threading.Thread):
 
         return self.devices.__dict__
 
-    def control_card_devices(self):
-        for card_item in self.config.audio_receiver.get("cards", list()):
-            card_config = getattr(self.config, card_item)
-            for card_name, card in self.devices.cards.items():
-                if card_name != card_config['name']:
-                    continue
-
-                if card.profile_active.name == card_config['profile']:
-                    continue
-
-                for card_profile in card.profile_list:
-                    if card_profile.name != card_config['profile']:
-                        continue
-
-                    log.info('Changing profile for card {} from {} to {}'.format(card.name, card.profile_active.name, card_config['profile']))
-                    self.pulse.card_profile_set(card, card_profile)
-
     def update_card_devices(self):
         cards = self.pulse.card_list()
 
         for card in cards:
             self.devices.cards[card.name] = card
+
+    def control_card_devices(self):
+        for card_id in self.config.audio_receiver.get("cards", list()):
+            card_meta = getattr(self.config, card_id)
+            card_name = card_meta['name']
+            if not card_name:
+                log.warning('Sink {} is missing a name'.format(card_id))
+                continue
+
+            for card_name, card in self.devices.cards.items():
+                if card_name != card_meta['name']:
+                    continue
+
+                if card.profile_active.name == card_meta['profile']:
+                    continue
+
+                for card_profile in card.profile_list:
+                    if card_profile.name != card_meta['profile']:
+                        continue
+
+                    log.info('Changing profile for card {} from {} to {}'.format(card.name, card.profile_active.name, card_meta['profile']))
+                    self.pulse.card_profile_set(card, card_profile)
 
     def get_module_arguments(self, module):
         module.args = dict()
