@@ -9,11 +9,11 @@
 
 - Added Spotify service to the supported plugins list with instructions for users with Spotify premium.  Due to the streaming services popularity I went ahead and purchased a month so I could test premium Spotify with the Spotify Connect feature.  I ended up going with Spotifyd over Raspotify as I encountered allot of issues trying to get Raspotify to work seamlessly while also being picked up by the visualizer.
 
-- Updated builds for libprojectM and projectMSDL.  There have been numerous improvements to libprojectM since the 4.0 release however I have been hesitant to update to it due to a performance impact.  I have decided the performance impact is worth it for the issues it fixes, so you may have to remove some presets if they exhibit low fps.  To alleviate the work I have a new option for hand selected presets!
+- Updated builds for libprojectM and projectMSDL.  There have been numerous improvements to libprojectM since the 4.0 release however I have been hesitant to update to it due to a performance impact.  I have decided the performance impact is worth it for the issues it fixes, <b>so you may have to remove some presets if they exhibit low fps</b>.  To alleviate the work I have a new option for hand selected presets!
 
-- Hand selected presets are now available (Took me a while to go through the 10K batch)!  These presets and textures will be hosted on a new repository with instructions on how to get them applied.
+- Hand selected presets are now available (Took me a while to go through the 10K batch)!  These presets and textures are hosted on a new repository with instructions on how to get them applied.
 
-- Various improvements and some bug fixes.  Because some of the configuration settings have changed, please migrate with caution.
+- Various improvements and some bug fixes.  Because some of the configuration settings have changed, please migrate with caution.  Furthermore I have updated to install instructions to avoid clutter in the user home directory and to also split up the projectMSDL and projectMAR installation directories
 
 ### Recently there have been many improvements:
 
@@ -102,6 +102,11 @@ sudo apt update
 sudo apt upgrade
 ```
 
+Lets add a directory to store our builds so we dont clutter the home directory
+```
+mkdir ~/Builds
+```
+
 ## Building ProjectM and Dependencies
 It is advised to only use the releases tested here as they are version controlled to ensure a seamless experience.
 
@@ -117,10 +122,10 @@ sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-de
 ### Download/extract/build libprojectM
 The current build this project uses is 4.0.0.  There is currently a bug in later releases that impact performance on the Raspberry Pi.
 ```
-cd ~
+cd ~/Builds
 wget https://github.com/projectM-visualizer/projectm/releases/download/v4.1.4/libprojectM-4.1.4.tar.gz
 tar xf libprojectM-4.1.4.tar.gz
-cd ~/libprojectM-4.1.4/
+cd ~/Builds/libprojectM-4.1.4/
 mkdir build
 cd build
 cmake -DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
@@ -130,14 +135,14 @@ cmake --build . --parallel && sudo cmake --build . --target install
 </details>
 
 <details>
-<summary><b>Building libPico</b></summary>
+<summary><b>Building libPoco</b></summary>
 
-### Download/extract/build libPico-dev
-Because the current repository contains a problematic version of libPico-dev, we must build from source.
+### Download/extract/build libPoco-dev
+Because the current repository contains a problematic version of libPoco-dev, we must build from source.
 
-Obtain a tested working build of libPico-dev and build.  ***Note:** This is going to take some time to install*
+Obtain a tested working build of libPoco-dev and build.  ***Note:** This is going to take some time to install*
 ```
-cd ~
+cd ~/Builds
 wget https://github.com/pocoproject/poco/archive/refs/tags/poco-1.12.5p2-release.tar.gz
 tar xf poco-1.12.5p2-release.tar.gz
 cd poco-poco-1.12.5p2-release/
@@ -167,7 +172,7 @@ sudo apt install libsdl2-dev libfreetype-dev cmake
 ### Download/build frontend-sdl2
 
 ```
-cd ~
+cd ~/Builds
 git clone https://github.com/kholbrook1303/frontend-sdl2.git
 cd frontend-sdl2/
 git submodule init
@@ -182,8 +187,8 @@ make
 Copy build application to standard directory (Make sure you replace <group>:<user> with the appropriate user and group)
 ```
 sudo mkdir /opt/ProjectMSDL
-sudo cp -r ~/frontend-sdl2/cmake-build/src/projectMSDL /opt/ProjectMSDL/
-sudo cp -r ~/frontend-sdl2/cmake-build/src/projectMSDL.properties /opt/ProjectMSDL/
+sudo cp -r ~/Builds/frontend-sdl2/cmake-build/src/projectMSDL /opt/ProjectMSDL/
+sudo cp -r ~/Builds/frontend-sdl2/cmake-build/src/projectMSDL.properties /opt/ProjectMSDL/
 sudo chown <group>:<user> /opt/ProjectMSDL/ -R
 sudo chmod 777 -R /opt/ProjectMSDL
 ```
@@ -193,6 +198,11 @@ Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change
 ```
 projectM.meshX = 64
 projectM.meshY = 32
+
+projectM.transitionDuration = 0
+
+# If using projectMAR Set this to false and use shuffling in projectMAR.conf
+projectM.shuffleEnabled = false
 ```
 
 For OS Lite enable fullscreen exclusive mode.
@@ -238,10 +248,10 @@ There are many options available to you for presets and textures.  In the follow
 
 ### Download and move the presets and textures
 ```
-cd ~
+cd ~/Builds
 git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git
-cp ~/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMSDL/ -R
-cp ~/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMSDL/ -R
+cp ~/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMSDL/ -R
+cp ~/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMSDL/ -R
 ```
 
 Adjust /opt/ProjectMSDL/projectMSDL.properties to include the preset and texture directories
@@ -259,10 +269,10 @@ projectM.texturePath = /opt/ProjectMSDL/textures
 ### Download and move the presets and textures
 *Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
 ```
-cd ~
+cd ~/Builds
 git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
-cp ~/projectM-presets-rpi5/presets/ /opt/ProjectMSDL/ -R
-cp ~/projectM-presets-rpi5/textures/ /opt/ProjectMSDL/ -R
+cp ~/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMSDL/ -R
+cp ~/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMSDL/ -R
 ```
 
 Adjust /opt/ProjectMSDL/projectMSDL.properties to include the preset and texture directories
@@ -311,7 +321,7 @@ sudo apt install xautomation pulseaudio
 
 Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
 
-To enable higher sample rates in Pulseaudio (Specifically for various DACs) ensure you add the following to Pulseaudio daemon config
+To enable higher sample rates in Pulseaudio (Specifically for various DACs) ensure you add the following to Pulseaudio daemon config (/etc/pulse/daemon.conf)
 ```
 resample-method = soxr-vhq
 avoid-resampling = true
@@ -334,10 +344,10 @@ systemctl --user restart pulseaudio.service
 ### Download and configure ProjectMAR
 Pull the sources from Github and copy files to installation directory (Make sure you replace <group>:<user> with the appropriate user and group)
 ```
-cd ~
+cd ~/Builds
 git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git
 sudo mkdir /opt/ProjectMAR
-sudo cp -r ~/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMAR/
+sudo cp -r ~/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMAR/
 sudo chown <group>:<user> /opt/ProjectMAR/ -R
 sudo chmod 777 -R /opt/ProjectMAR
 ```
@@ -452,7 +462,7 @@ ctrl+q (or 'sudo killall projectMSDL' from terminal)
 ## Optional Features
 
 <details>
-<summary><b>Setup A2DP Bluetooth audio receiver </b></summary>
+<summary><b>Setup A2DP Bluetooth audio </b></summary>
 
 ### Get Bluetooth dependencies
 
@@ -469,9 +479,8 @@ sudo nano /etc/bluetooth/main.conf
 
 And add / uncomment / change
 ```
-...
 Class = 0x41C
-...
+
 DiscoverableTimeout = 0
 ```
 
@@ -532,7 +541,7 @@ sudo systemctl start bt-agent
 </details>
 
 <details>
-<summary><b>Setup AirPlay receiver</b></summary>
+<summary><b>Setup AirPlay</b></summary>
 
 
 ### Setup and build Shairport Sync
@@ -551,10 +560,10 @@ sudo apt install --no-install-recommends build-essential git autoconf automake l
 Clone and build shairport-sync
 ```
 
-cd ~
+cd ~/Builds
 wget https://github.com/mikebrady/shairport-sync/archive/refs/tags/4.3.7.tar.gz
 tar xf 4.3.7.tar.gz
-cd ~/shairport-sync-4.3.7/
+cd ~/Builds/shairport-sync-4.3.7/
 autoreconf -fi
 ./configure --sysconfdir=/etc --with-alsa \
     --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
@@ -567,10 +576,10 @@ sudo make install
 
 Clone and build nqptp
 ```
-cd ~
+cd ~/Builds
 wget https://github.com/mikebrady/nqptp/archive/refs/tags/1.2.4.tar.gz
 tar xf 1.2.4.tar.gz
-cd ~/nqptp-1.2.4
+cd ~/Builds/nqptp-1.2.4
 autoreconf -fi
 ./configure --with-systemd-startup
 make
@@ -601,15 +610,15 @@ arguments=
 </details>
 
 <details>
-<summary><b>Setup Plexamp Receiver</b> <i>(Requires PlexPass)</i></summary>
+<summary><b>Setup Plexamp</b> <i>(Requires PlexPass)</i></summary>
 
 ### Get PlexAmp and NodeJS
 
 ```
-cd ~
+cd ~/Builds
 wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.11.5.tar.bz2
 tar -xvjf Plexamp-Linux-headless-v4.11.5.tar.bz2
-sudo cp ~/plexamp/ /opt/ -r
+sudo cp ~/Builds/plexamp/ /opt/ -r
 cd /opt/plexamp
 sudo apt-get install -y ca-certificates curl gnupg && sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
@@ -660,12 +669,12 @@ Login with your PlexPass credentials and you can now control PlexAmp music on yo
 </details>
 
 <details>
-<summary><b>Setup Spotify Receiver</b> <i>(Requires Spotify Premium)</i></summary>
+<summary><b>Setup Spotify Connect</b> <i>(Requires Spotify Premium)</i></summary>
 
 ### Get Spotifyd
 
 ```
-cd ~
+cd ~/Builds
 wget https://github.com/Spotifyd/spotifyd/releases/download/v0.4.0/spotifyd-linux-aarch64-default.tar.gz
 tar xzf spotifyd-linux-aarch64-default.tar.gz
 chmod +x spotifyd
