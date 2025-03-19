@@ -98,7 +98,7 @@ class Controller:
                             process_name, attr['process'].returncode
                             ))
 
-                    if halt_on_exit or attr['process'].returncode == 0:
+                    if halt_on_exit or (attr['process'].returncode == 0 and attr['name'] == 'projectMSDL'):
                         log.warning('Stopping ProjectMAR due to {} exit'.format(process_name))
                         self._thread_event.set()
 
