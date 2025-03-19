@@ -123,7 +123,7 @@ if __name__ == "__main__":
         audio.close()
 
         display = DisplayCtrl(None, config)
-        if display.environment == 'desktop':
+        if display._environment == 'desktop':
             display_data = display.get_diagnostics()
 
             display_json = os.path.join(diag_path, 'display.json')

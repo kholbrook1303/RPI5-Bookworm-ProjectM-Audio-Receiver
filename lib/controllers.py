@@ -26,6 +26,7 @@ class PluginDevice:
 
 class DeviceCatalog:
     def __init__(self):
+        self.cards                  = dict()
         self.modules                = dict()
         self.sink_cards             = dict()
         self.sink_devices           = dict()
@@ -44,6 +45,7 @@ class AudioCtrl(Controller, threading.Thread):
         self.thread_event = thread_event
         
         self.audio_mode             = self.config.audio_receiver.get('audio_mode', 'automatic')
+        self.card_ctrl              = self.config.audio_receiver.get('card_ctrl', False)
         self.io_device_mode         = self.config.audio_receiver.get('io_device_mode', 'aux')
         self.allow_multiple_sinks   = self.config.audio_receiver.get('allow_multiple_sinks', True)
         self.allow_multiple_sources = self.config.audio_receiver.get('allow_multiple_sources', True)
@@ -108,6 +110,34 @@ class AudioCtrl(Controller, threading.Thread):
         self.update_plugin_devices()
 
         return self.devices.__dict__
+
+    def update_card_devices(self):
+        cards = self.pulse.card_list()
+
+        for card in cards:
+            self.devices.cards[card.name] = card
+
+    def control_card_devices(self):
+        for card_id in self.config.audio_receiver.get("cards", list()):
+            card_meta = getattr(self.config, card_id)
+            card_name = card_meta['name']
+            if not card_name:
+                log.warning('Sink {} is missing a name'.format(card_id))
+                continue
+
+            for card_name, card in self.devices.cards.items():
+                if card_name != card_meta['name']:
+                    continue
+
+                if card.profile_active.name == card_meta['profile']:
+                    continue
+
+                for card_profile in card.profile_list:
+                    if card_profile.name != card_meta['profile']:
+                        continue
+
+                    log.info('Changing profile for card {} from {} to {}'.format(card.name, card.profile_active.name, card_meta['profile']))
+                    self.pulse.card_profile_set(card, card_profile)
 
     def get_module_arguments(self, module):
         module.args = dict()
@@ -216,6 +246,9 @@ class AudioCtrl(Controller, threading.Thread):
                     elif app == 'shairport-sync':
                         plugin_device = PluginDevice(app, plugin.index, plugin)
                         plugin_device.device = 'airplay'
+                    elif app == 'spotifyd':
+                        plugin_device = PluginDevice(app, plugin.index, plugin)
+                        plugin_device.device = 'spotify'
 
                     if not plugin_device:
                         log.warning('Unable to identify plugin device: {}'.format(plugin.__dict__))
@@ -520,6 +553,10 @@ class AudioCtrl(Controller, threading.Thread):
                     yield supported_source
 
     def handle_devices(self):
+        self.update_card_devices()
+        if self.card_ctrl:
+            self.control_card_devices()
+
         self.update_sink_devices()
 
         active_sinks = list()
@@ -873,8 +910,8 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.display_ctrl = display_ctrl
         self.thread_event = thread_event
         
-        self.projectm_path = self.config.projectm.get('path', '/opt/ProjectMSDL')
-        self.projectm_restore = self.config.general.get('projectm_restore', False)        
+        self.projectm_path = self.config.projectm.get('projectm_path', '/opt/ProjectMSDL')
+        self.projectm_restore = self.config.projectm.get('projectm_restore', False)      
 
         self.screenshot_index = 0
         self.screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
@@ -883,6 +920,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
+        self.preset_index = self.config.projectm.get('preset_index', False)
         self.preset_monitor = self.config.projectm.get('preset_monitor', False)
         self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
 
@@ -958,7 +996,6 @@ class ProjectMCtrl(Controller, threading.Thread):
                 os.rename(preset, dst)
             except Exception as e:
                 log.error('Failed to rename preset {0}: {1}'.format(preset, e))
-
             
     def manage_playlist(self):
         presets = list()
@@ -971,13 +1008,15 @@ class ProjectMCtrl(Controller, threading.Thread):
         if self.preset_advanced_shuffle == True:
             random.shuffle(presets)
 
-        self.index_presets(presets)
-                
+        if not self.preset_advanced_shuffle and not self.preset_index:
+            pass
+        else:
+            self.index_presets(presets)
         
     def run(self, beatSensitivity=2.0):   
         self.manage_playlist()
     
-        app_path = os.path.join(APP_ROOT, 'projectMSDL')
+        app_path = os.path.join(self.projectm_path, 'projectMSDL')
         
         projectm_meta = {
             'path': app_path,
