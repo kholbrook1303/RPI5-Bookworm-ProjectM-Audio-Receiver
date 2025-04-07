@@ -644,10 +644,6 @@ class AudioCtrl(Controller, threading.Thread):
             if self.module_loaded('module-combine-sink'):
                 log.info('Found an active module-combine-sink module loaded!')
 
-                for module in self.pulse.module_list():
-                    self.get_module_arguments(module)
-                    log.info('Module Name: {} Arguments:{}'.format(module.name, module.args))
-
                 self.unload_combined_sink_modules()
 
             combined_sinks = list()
@@ -657,10 +653,7 @@ class AudioCtrl(Controller, threading.Thread):
                 supported_sink['device'].active = True
                 combined_sinks.append(supported_sink['device'].name)
 
-            try:
-                self.load_combined_sinks(combined_sinks)
-            except Exception as ex:
-                log.exception('Failed to load combined module.  Current modules available are {}'.format(self.pulse.module_list()))
+            self.load_combined_sinks(combined_sinks)
             self.pulse.sink_default_set('combined')
             self.sink_device = 'combined'
 
