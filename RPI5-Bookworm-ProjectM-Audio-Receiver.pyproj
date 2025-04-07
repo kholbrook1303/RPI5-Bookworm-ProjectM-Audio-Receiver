@@ -30,13 +30,18 @@
     <Compile Include="projectMAR.py" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="projectMAR.conf" />
+    <Content Include="conf\audio_cards.conf" />
+    <Content Include="conf\audio_plugins.conf" />
+    <Content Include="conf\projectMAR.conf" />
+    <Content Include="conf\audio_sinks.conf" />
+    <Content Include="conf\audio_sources.conf" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="lib\" />
+    <Folder Include="conf\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

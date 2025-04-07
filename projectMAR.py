@@ -37,12 +37,12 @@ def main(config):
     if config.general.get('audio_receiver_enabled', True):
         controllers.append(audio_ctrl)
 
-        plugin_ctrl = PluginCtrl(thread_event, config)
-        if config.audio_receiver.get('plugin_ctrl', False):
-            controllers.append(plugin_ctrl)
+    plugin_ctrl = PluginCtrl(thread_event, config)
+    if config.general.get('audio_plugins_enabled', False):
+        controllers.append(plugin_ctrl)
 
     display_ctrl = DisplayCtrl(thread_event, config)
-    if config.general.get('display_enforcement', True):
+    if config.general.get('display_enforcement_enabled', True):
         controllers.append(display_ctrl)
     
     if config.general.get('projectm_enabled', True):
@@ -90,7 +90,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    config_path = os.path.join(APP_ROOT, 'projectMAR.conf')
+    config_path = os.path.join(APP_ROOT, 'conf', 'projectMAR.conf')
     config = Config(config_path)
     
     logpath = os.path.join(APP_ROOT, 'projectMAR.log')
