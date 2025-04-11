@@ -48,9 +48,26 @@ mkdir /tmp/Builds/frontend-sdl2/cmake-build
 cmake -S /tmp/Builds/frontend-sdl2 -B /tmp/Builds/frontend-sdl2/cmake-build -DCMAKE_BUILD_TYPE=Release
 cmake --build /tmp/Builds/frontend-sdl2/cmake-build --config Release
 
+# Move SDL build to opt
 mkdir /opt/ProjectMSDL
 cp -r /tmp/Builds/frontend-sdl2/cmake-build/src/projectMSDL /opt/ProjectMSDL/
 cp -r /tmp/Builds/frontend-sdl2/cmake-build/src/projectMSDL.properties /opt/ProjectMSDL/
+
+# Set projectMSDL.properties configuration
+sed -i 's/.*window.fullscreen =.*/window.fullscreen = true/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*window.width =.*/window.width = 1280/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*window.height =.*/window.height = 720/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.texturePath =.*/projectM.fullscreen = \/opt\/ProjectMSDL\/textures/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.displayDuration =.*/projectM.displayDuration  = 60/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.shuffleEnabled =.*/projectM.shuffleEnabled  = false/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.meshX =.*/projectM.meshX = 64/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.meshY =.*/projectM.meshY = 32/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.transitionDuration =.*/projectM.transitionDuration = 0/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.hardCutsEnabled =.*/projectM.hardCutsEnabled = true/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*projectM.hardCutDuration =.*/projectM.hardCutDuration = 30/' /opt/ProjectMSDL/projectMSDL.properties
+sed -i 's/.*logging.channels.file.path =.*/logging.channels.file.path = \/opt\/ProjectMSDL\/ProjectMSDL.log/' /opt/ProjectMSDL/projectMSDL.properties
 
 # Setup textures and presets
 git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git /tmp/Builds/RPI5-ProjectM-Presets-Textures
@@ -117,5 +134,51 @@ if grep -q "stage2" "/boot/issue.txt"; then
 else
   echo -e "[Desktop Entry]\nName=ProjectMAR\nExec=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py\nType=Application" > /etc/xdg/autostart/projectm.desktop
 fi
+
+# Install bluetooth dependencies
+apt install -y pulseaudio-module-bluetooth bluez-tools
+
+# Setup bt mode
+sed -i 's/.*#Class = 0x000100.*/Class = 0x41C/' /etc/bluetooth/main.conf
+sed -i 's/^#\(.*DiscoverableTimeout.*\)/\1/' /etc/bluetooth/main.conf
+
+# restart servvice
+systemctl restart bluetooth
+
+# Enable bt adapter and turn on pairable
+bluetoothctl power on
+bluetoothctl discoverable on
+bluetoothctl pairable on
+bluetoothctl agent on
+
+# Install bt agent service
+echo -e "[Unit]\nDescription=Bluetooth Auth Agent\nAfter=bluetooth.service\nPartOf=bluetooth.service\n\n[Service]\nType=simple\nExecStart=/usr/bin/bt-agent -c NoInputNoOutput\nKillSignal=SIGUSR1\n\n[Install]\nWantedBy=bluetooth.target" > /etc/systemd/system/bt-agent.service
+
+# Enable and restart service
+systemctl enable bt-agent
+systemctl start bt-agent
+
+# Install the shairport-sync dependencies
+apt install -y --no-install-recommends build-essential git autoconf automake libtool libpulse-dev libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
+
+# Download and build Shairport-Sync
+wget https://github.com/mikebrady/shairport-sync/archive/refs/tags/4.3.5.tar.gz -P /tmp/Builds
+tar xf /tmp/Builds/4.3.5.tar.gz -C /tmp/Builds/
+autoreconf -fi --include=/tmp/Builds/shairport-sync-4.3.5/
+/tmp/Builds/shairport-sync-4.3.5/configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
+make -C /tmp/Builds/shairport-sync-4.3.5/
+make -C /tmp/Builds/shairport-sync-4.3.5/ install
+
+# Download and build nqptp
+wget https://github.com/mikebrady/nqptp/archive/refs/tags/1.2.4.tar.gz -P /tmp/Builds
+tar xf /tmp/Builds/1.2.4.tar.gz -C /tmp/Builds/
+autoreconf -fi --include=/tmp/Builds/shairport-sync-4.3.5/
+/tmp/Builds/nqptp-1.2.4/configure --with-systemd-startup
+make -C /tmp/Builds/nqptp-1.2.4/
+make -C /tmp/Builds/nqptp-1.2.4/ install
+
+# Enable and start nqptp service
+sudo systemctl enable nqptp
+sudo systemctl start nqptp
 
 rm -rf /tmp/Builds
