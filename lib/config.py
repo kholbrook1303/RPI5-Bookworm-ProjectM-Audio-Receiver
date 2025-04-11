@@ -34,6 +34,8 @@ class Config:
                         value = config.get(section, name).split(",")
                     elif name == "audio_sources":
                         value = config.get(section, name).split(",")
+                    elif name == "card_device_types":
+                        value = config.get(section, name).split(",")
                     elif name == "card_device_modes":
                         value = config.get(section, name).split(",")
                     elif self._is_str_bool(str_value):

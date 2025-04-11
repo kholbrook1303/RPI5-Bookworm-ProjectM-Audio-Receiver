@@ -34,18 +34,18 @@ def main(config):
     controllers = list()
 
     audio_ctrl = AudioCtrl(thread_event, config)
-    if config.general.get('audio_receiver_enabled', True):
+    if config.general.get('audio_receiver', True):
         controllers.append(audio_ctrl)
 
     plugin_ctrl = PluginCtrl(thread_event, config)
-    if config.general.get('audio_plugins_enabled', False):
+    if config.general.get('audio_plugins', False):
         controllers.append(plugin_ctrl)
 
     display_ctrl = DisplayCtrl(thread_event, config)
-    if config.general.get('display_enforcement_enabled', True):
+    if config.general.get('display_enforcement', True):
         controllers.append(display_ctrl)
     
-    if config.general.get('projectm_enabled', True):
+    if config.general.get('projectm', True):
         projectM_ctrl = ProjectMCtrl(thread_event, config, audio_ctrl, display_ctrl)
         controllers.append(projectM_ctrl)
 

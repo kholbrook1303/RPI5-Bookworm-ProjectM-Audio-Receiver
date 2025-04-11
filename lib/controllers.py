@@ -14,6 +14,13 @@ from lib.config import APP_ROOT, Config
 
 log = logging.getLogger()
 
+UINPUT_INSTALLED = False
+try:
+    import uinput
+    UINPUT_INSTALLED = True
+except:
+    log.warning('python-uinput is not installed and therefore will not be used!')
+
 class PluginDevice:
     def __init__(self, device_name, device_index, device_meta=None):
         self.name           = device_name
@@ -556,15 +563,18 @@ class AudioCtrl(Controller, threading.Thread):
 
     def get_supported_cards(self):
         if self.audio_mode == 'automatic':      # Need to evaluate additonal options for automatic card profile configuration
-            card_device_type = self.config.automatic.get('card_device_type', None)
+            card_device_types = self.config.automatic.get('card_device_types', list())
             card_device_modes = self.config.automatic.get('card_device_modes', list())
 
-            if not card_device_type or len(card_device_modes) == 0:
+            if len(card_device_types) == 0 or len(card_device_modes) == 0:
                 log.warning('Skipping card control as there are missing configurations in projectMAR.conf')
                 return
 
             for card_name, card in self.devices.cards.items():
-                active_profile = card.profile_active
+                if card.active:
+                    continue
+                
+                supported_card = None
                 for card_profile in card.profile_list:
                     if card_profile.name == 'off':
                         continue
@@ -574,28 +584,30 @@ class AudioCtrl(Controller, threading.Thread):
                         mode_io, mode_type = mode.split(':')
                         profile_meta[mode_io] = mode_type
 
-                    supported_card = None
-                    if card_device_type == 'input-output' and profile_meta.get('input') and profile_meta.get('output'):
+                    if 'input-output' in card_device_types and profile_meta.get('input') and profile_meta.get('output'):
                         if profile_meta['input'] in card_device_modes and profile_meta['output'] in card_device_modes:
                             supported_card = {
                                 'card'      : card,
                                 'profile'   : card_profile.name
                                 }
-                    elif card_device_type == 'input' and profile_meta.get('input'):
+                    elif 'input' in card_device_types and profile_meta.get('input'):
                         if profile_meta['input'] in card_device_modes:
                             supported_card = {
                                 'card'      : card,
                                 'profile'   : card_profile.name
                                 }
-                    elif card_device_type == 'output' and profile_meta.get('output'):
-                        if profile_meta['input'] in card_device_modes and profile_meta['output'] in card_device_modes:
+                    elif 'output' in card_device_types and profile_meta.get('output'):
+                        if profile_meta['output'] in card_device_modes:
                             supported_card = {
                                 'card'      : card,
                                 'profile'   : card_profile.name
                                 }
 
                     if supported_card:
-                        yield supported_card
+                        break
+
+                if supported_card:
+                    yield supported_card
 
         elif self.audio_mode == 'manual':
             for card_id in self.audio_cards_config.general.get('audio_cards', list()):
@@ -992,12 +1004,12 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
         if not os.path.exists(self.screenshot_path):
             os.makedirs(self.screenshot_path)
-        self.screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
+        self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
         self.preset_index = self.config.projectm.get('preset_index', False)
         self.preset_monitor = self.config.projectm.get('preset_monitor', False)
-        self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
+        self.preset_screenshots = self.config.projectm.get('preset_screenshots', False)
 
         # ProjectM Configurations
         config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
@@ -1050,7 +1062,7 @@ class ProjectMCtrl(Controller, threading.Thread):
                 
                     # Take a preview screenshot
                     if self.display_ctrl._environment == 'desktop':
-                        if self.screenshots_enabled and self.audio_ctrl.source_device:
+                        if self.preset_screenshots and self.audio_ctrl.source_device:
                             self.take_screenshot(preset)
             except:
                 log.exception('Failed to process output: {}'.format(line))
@@ -1064,9 +1076,17 @@ class ProjectMCtrl(Controller, threading.Thread):
                 if duration >= (self.preset_display_duration + 5):
                     log.warning('The visualization has not changed in the alloted timeout!')
 
-                    log.info('Manually transitioning to the next visualization...')
-                    xautomation_process = self._execute(['xte'])
-                    xautomation_process.communicate(input='key n\n')
+                    try:
+                        events = [
+                            uinput.KEY_N, uinput.KEY_P
+                            ]
+
+                        log.info('Manually transitioning to the next visualization...')
+                        with uinput.Device(events) as device:
+                            time.sleep(1)
+                            device.emit_click(uinput.KEY_N)
+                    except:
+                        log.exception('Failed to access uinput device!')
                 
             time.sleep(1)
 
@@ -1132,7 +1152,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         output_thread.start()
         self._threads['ProjectMDSL_Output'] = output_thread
         
-        if self.preset_monitor:
+        if self.preset_monitor and UINPUT_INSTALLED:
             # Start thread to trigger the next preset 
             # in the event of a hang
             hang_thread = Thread(
