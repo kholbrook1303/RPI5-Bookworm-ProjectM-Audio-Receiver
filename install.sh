@@ -20,7 +20,7 @@ apt update
 apt install pulseaudio
 
 read -p "Do you want to setup libprojectM? " -n 1 -r
-echo
+echo 
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
 	# Install projectM package dependencies
@@ -193,22 +193,24 @@ then
 	# Download and build Shairport-Sync
 	wget https://github.com/mikebrady/shairport-sync/archive/refs/tags/4.3.5.tar.gz -P /tmp/Builds
 	tar xf /tmp/Builds/4.3.5.tar.gz -C /tmp/Builds/
-	autoreconf -fi --include=/tmp/Builds/shairport-sync-4.3.5/
-	/tmp/Builds/shairport-sync-4.3.5/configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
+	autoreconf -fi /tmp/Builds/shairport-sync-4.3.5/
+	cd /tmp/Builds/shairport-sync-4.3.5
+	./configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
 	make -C /tmp/Builds/shairport-sync-4.3.5/
 	make -C /tmp/Builds/shairport-sync-4.3.5/ install
 
 	# Download and build nqptp
 	wget https://github.com/mikebrady/nqptp/archive/refs/tags/1.2.4.tar.gz -P /tmp/Builds
 	tar xf /tmp/Builds/1.2.4.tar.gz -C /tmp/Builds/
-	autoreconf -fi --include=/tmp/Builds/shairport-sync-4.3.5/
-	/tmp/Builds/nqptp-1.2.4/configure --with-systemd-startup
+	autoreconf -fi /tmp/Builds/nqptp-1.2.4/
+	cd /tmp/Builds/nqptp-1.2.4
+	./configure --with-systemd-startup
 	make -C /tmp/Builds/nqptp-1.2.4/
 	make -C /tmp/Builds/nqptp-1.2.4/ install
 
 	# Enable and start nqptp service
-	sudo systemctl enable nqptp
-	sudo systemctl start nqptp
+	systemctl enable nqptp
+	systemctl start nqptp
 fi
 
 rm -rf /tmp/Builds
