@@ -19,7 +19,7 @@ apt update
 # Install package dependencies
 apt install pulseaudio
 
-read -p "Do you want to setup libprojectM? " -n 1 -r
+read -p "Do you want to setup libprojectM? " -n1
 echo 
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
