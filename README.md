@@ -85,11 +85,10 @@ sudo apt upgrade
 
 ### Install projectM, frontend SDL, and projectMAR using the new setup script
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/refs/heads/dev/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/refs/heads/dev/bin/install_projectMAR.sh | sudo bash
 ```
 
-Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
-
+<i><b>Note:</b> Once the script has completed the system will be rebooted and you should have the visualizer up and running.  To exit and proceed with additional plugins hit ctrl+q to quit projectM</i>
 </details>
 
 <details>
