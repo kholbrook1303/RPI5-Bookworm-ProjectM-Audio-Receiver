@@ -28,7 +28,7 @@ systemctl --user unmask pulseaudio
 systemctl --user --now disable pipewire-media-session.service
 systemctl --user --now disable pipewire pipewire-pulse
 systemctl --user --now enable pulseaudio.service pulseaudio.socket
-sudo apt remove pipewire-audio-client-libraries pipewire
+apt remove pipewire-audio-client-libraries pipewire
 
 projectMCurrent="4.1.4"
 if [[ "$ldconfigOutput" =~ "libprojectM-4.so.$projectMCurrent" ]]; then
