@@ -181,4 +181,4 @@ else
   fi
 fi
 
-rmdir -rf "$_TMP_BUILDS"
+rm -rf "$_TMP_BUILDS"
