@@ -23,6 +23,13 @@ apt update
 # Install package dependencies
 apt install pulseaudio
 
+# Switch system to use pulseaudio
+systemctl --user unmask pulseaudio
+systemctl --user --now disable pipewire-media-session.service
+systemctl --user --now disable pipewire pipewire-pulse
+systemctl --user --now enable pulseaudio.service pulseaudio.socket
+sudo apt remove pipewire-audio-client-libraries pipewire
+
 projectMCurrent="4.1.4"
 if [[ "$ldconfigOutput" =~ "libprojectM-4.so.$projectMCurrent" ]]; then
 	echo "libprojectM $projectMCurrent is already installed"
@@ -182,3 +189,5 @@ else
 fi
 
 rm -rf "$_TMP_BUILDS"
+
+reboot
