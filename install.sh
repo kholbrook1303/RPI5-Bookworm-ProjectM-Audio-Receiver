@@ -1,85 +1,102 @@
 #!/usr/bin/env bash
 
-# get user name for setting permissions later
-if [ -n "$SUDO_USER" ]
-then
-	username=$SUDO_USER
+# Check for sudo user account
+if [ -n "$SUDO_USER" ]; then
 	echo "Current user: $username"
 else
 	echo "Unable to identify SUDO_USER"
 	exit 1
 fi
 
-# Create a builds directory in the home root to organize dependencies
-mkdir /tmp/Builds
- 
+# Setup a temp build location
+_TMP_BUILDS="/tmp/Builds"
+mkdir "$_TMP_BUILDS"
+
+_PROJECTM_SDL_PATH="/opt/ProjectMSDL"
+_PROJECTM_AR_PATH="/opt/ProjectMAR"
+
+ldconfigOutput=$(ldconfig -v)
+
 # Update repositories
 apt update
 
 # Install package dependencies
 apt install pulseaudio
 
-# Install projectM package dependencies
-apt install -y build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
+projectMCurrent="4.1.4"
+if [[ "$ldconfigOutput" =~ "libprojectM-4.so.$projectMCurrent" ]]; then
+	echo "libprojectM $projectMCurrent is already installed"
+else
+	# Install projectM package dependencies
+	apt install -y build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
 
-# Download/extract/build libprojectM
-wget https://github.com/projectM-visualizer/projectm/releases/download/v4.1.4/libprojectM-4.1.4.tar.gz -P /tmp/Builds
-tar xf /tmp/Builds/libprojectM-4.1.4.tar.gz -C /tmp/Builds
-mkdir /tmp/Builds/libprojectM-4.1.4/cmake-build
-cmake DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -S /tmp/Builds/libprojectM-4.1.4 -B /tmp/Builds/libprojectM-4.1.4/cmake-build
-cmake --build /tmp/Builds/libprojectM-4.1.4/cmake-build --parallel && cmake --build /tmp/Builds/libprojectM-4.1.4/cmake-build --target install
+	# Download/extract/build libprojectM
+	wget "https://github.com/projectM-visualizer/projectm/releases/download/v$projectMCurrent/libprojectM-$projectMCurrent.tar.gz" -P "$_TMP_BUILDS"
+	tar xf "$_TMP_BUILDS/libprojectM-$projectMCurrent.tar.gz" -C "$_TMP_BUILDS"
+	mkdir "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
+	cmake DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -S "$_TMP_BUILDS/libprojectM-$projectMCurrent" -B "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
+	cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --parallel && cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --target install
+fi
 
-# Download/extract/build libPoco-dev
-wget https://github.com/pocoproject/poco/archive/refs/tags/poco-1.12.5p2-release.tar.gz -P /tmp/Builds
-tar xf /tmp/Builds/poco-1.12.5p2-release.tar.gz -C /tmp/Builds
-mkdir /tmp/Builds/poco-poco-1.12.5p2-release/cmake-build
-cmake -S /tmp/Builds/poco-poco-1.12.5p2-release -B /tmp/Builds/poco-poco-1.12.5p2-release/cmake-build
-cmake --build /tmp/Builds/poco-poco-1.12.5p2-release/cmake-build --config Release
-cmake --build /tmp/Builds/poco-poco-1.12.5p2-release/cmake-build --target install
+libPocoCurrent="1.12.5p2"
+if [[ "$ldconfigOutput" =~ "libPocoXML.so.95" ]]; then
+	echo "libprojectM $libPocoCurrent is already installed"
+else
+	# Download/extract/build libPoco-dev
+	wget "https://github.com/pocoproject/poco/archive/refs/tags/poco-$libPocoCurrent-release.tar.gz" -P "$_TMP_BUILDS"
+	tar xf "$_TMP_BUILDS/poco-$libPocoCurrent-release.tar.gz" -C "$_TMP_BUILDS"
+	mkdir "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build"
+	cmake -S "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release" -B "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build"
+	cmake --build "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build" --config Release
+	cmake --build "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build" --target install
 
-cp /usr/local/lib/libPoco* /usr/lib/
+	# Transfer the libs to /user/lib/
+	cp /usr/local/lib/libPoco* /usr/lib/
+fi
 
 # Install frontend-sdl2 package dependencies
 apt install -y libsdl2-dev libfreetype-dev
 
 # Download/build frontend-sdl2
-git clone https://github.com/kholbrook1303/frontend-sdl2.git /tmp/Builds/frontend-sdl2
-git config --global --add safe.directory /tmp/Builds/frontend-sdl2
-git -C /tmp/Builds/frontend-sdl2 submodule init
-git -C /tmp/Builds/frontend-sdl2 submodule update
-mkdir /tmp/Builds/frontend-sdl2/cmake-build
-cmake -S /tmp/Builds/frontend-sdl2 -B /tmp/Builds/frontend-sdl2/cmake-build -DCMAKE_BUILD_TYPE=Release
-cmake --build /tmp/Builds/frontend-sdl2/cmake-build --config Release
+git clone https://github.com/kholbrook1303/frontend-sdl2.git "$_TMP_BUILDS/frontend-sdl2"
+git config --global --add safe.directory "$_TMP_BUILDS/frontend-sdl2"
+git -C "$_TMP_BUILDS/frontend-sdl2" submodule init
+git -C "$_TMP_BUILDS/frontend-sdl2" submodule update
+mkdir "$_TMP_BUILDS/frontend-sdl2/cmake-build"
+cmake -S "$_TMP_BUILDS/frontend-sdl2" -B "$_TMP_BUILDS/frontend-sdl2/cmake-build" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$_TMP_BUILDS/frontend-sdl2/cmake-build" --config Release
 
 # Move SDL build to opt
 mkdir /opt/ProjectMSDL
-cp -r /tmp/Builds/frontend-sdl2/cmake-build/src/projectMSDL /opt/ProjectMSDL/
-cp -r /tmp/Builds/frontend-sdl2/cmake-build/src/projectMSDL.properties /opt/ProjectMSDL/
+cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL" "$_PROJECTM_SDL_PATH"
+if ! [ -e "$_PROJECTM_SDL_PATH/projectMSDL.properties" ];then
+  cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL.properties" "$_PROJECTM_SDL_PATH"
 
-# Set projectMSDL.properties configuration
-sed -i 's/.*window.fullscreen =.*/window.fullscreen = true/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*window.width =.*/window.width = 1280/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*window.height =.*/window.height = 720/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.texturePath =.*/projectM.fullscreen = \/opt\/ProjectMSDL\/textures/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.displayDuration =.*/projectM.displayDuration  = 60/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.shuffleEnabled =.*/projectM.shuffleEnabled  = false/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.meshX =.*/projectM.meshX = 64/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.meshY =.*/projectM.meshY = 32/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.transitionDuration =.*/projectM.transitionDuration = 0/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.hardCutsEnabled =.*/projectM.hardCutsEnabled = true/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*projectM.hardCutDuration =.*/projectM.hardCutDuration = 30/' /opt/ProjectMSDL/projectMSDL.properties
-sed -i 's/.*logging.channels.file.path =.*/logging.channels.file.path = \/opt\/ProjectMSDL\/ProjectMSDL.log/' /opt/ProjectMSDL/projectMSDL.properties
+  # Set projectMSDL.properties configuration
+  sed -i 's/.*window.fullscreen =.*/window.fullscreen = true/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*window.width =.*/window.width = 1280/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*window.height =.*/window.height = 720/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.texturePath =.*/projectM.fullscreen = \/opt\/ProjectMSDL\/textures/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.displayDuration =.*/projectM.displayDuration  = 60/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.shuffleEnabled =.*/projectM.shuffleEnabled  = false/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.meshX =.*/projectM.meshX = 64/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.meshY =.*/projectM.meshY = 32/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.transitionDuration =.*/projectM.transitionDuration = 0/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.hardCutsEnabled =.*/projectM.hardCutsEnabled = true/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*projectM.hardCutDuration =.*/projectM.hardCutDuration = 30/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*logging.channels.file.path =.*/logging.channels.file.path = \/opt\/ProjectMSDL\/ProjectMSDL.log/' /opt/ProjectMSDL/projectMSDL.properties
+fi
 
 # Setup textures and presets
 git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git /tmp/Builds/RPI5-ProjectM-Presets-Textures
-cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMSDL/ -R
-cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMSDL/ -R
+cp "$_TMP_BUILDS/RPI5-ProjectM-Presets-Textures/presets/" "$_PROJECTM_SDL_PATH" -R
+cp "$_TMP_BUILDS/RPI5-ProjectM-Presets-Textures/textures/" "$_PROJECTM_SDL_PATH" -R
 
 # Set permissions on projectMSDL
-chown $username /opt/ProjectMSDL/ -R
-chmod 777 -R /opt/ProjectMSDL
+chown $SUDO_USER "$_PROJECTM_SDL_PATH" -R
+chmod 777 -R "$_PROJECTM_SDL_PATH"
 
 # Force the Open GL version
 if ! grep -q "MESA_GL_VERSION_OVERRIDE=4.5" "/etc/environment"; then
@@ -87,100 +104,81 @@ if ! grep -q "MESA_GL_VERSION_OVERRIDE=4.5" "/etc/environment"; then
 fi
 
 # Download and configure ProjectMAR
-git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git /tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver
-mkdir /opt/ProjectMAR
-cp -r /tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMAR/
+git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$_TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
+mkdir "$_PROJECTM_AR_PATH"
+
+# Check for old config and move to backup file
+if ! [ -e "$_PROJECTM_AR_PATH/projectMSDL.conf" ];then
+  mv "$_PROJECTM_AR_PATH/projectMSDL.conf" "$_PROJECTM_AR_PATH/projectMSDL.conf.bak"
+fi
+
+# Check for new configs and move to backup file
+if ! [ -e "$_PROJECTM_AR_PATH/conf/projectMSDL.conf" ];then
+  mv "$_PROJECTM_AR_PATH/conf/projectMSDL.conf" "$_PROJECTM_AR_PATH/conf/projectMSDL.conf.bak"
+fi
+if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_cards.conf" ];then
+  mv "$_PROJECTM_AR_PATH/conf/audio_cards.conf" "$_PROJECTM_AR_PATH/conf/audio_cards.conf.bak"
+fi
+if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_sinks.conf" ];then
+  mv "$_PROJECTM_AR_PATH/conf/audio_sinks.conf" "$_PROJECTM_AR_PATH/conf/audio_sinks.conf.bak"
+fi
+if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_sources.conf" ];then
+  mv "$_PROJECTM_AR_PATH/conf/audio_sources.conf" "$_PROJECTM_AR_PATH/conf/audio_sources.conf.bak"
+fi
+if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_plugins.conf" ];then
+  mv "$_PROJECTM_AR_PATH/conf/audio_plugins.conf" "$_PROJECTM_AR_PATH/conf/audio_plugins.conf.bak"
+fi
+
+cp -r /tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/* "$_PROJECTM_AR_PATH"
 
 # Set permissions on projectMAR
-chown $username /opt/ProjectMAR/ -R
-chmod 777 -R /opt/ProjectMAR
+chown $SUDO_USER "$_PROJECTM_AR_PATH" -R
+chmod 777 -R "$_PROJECTM_AR_PATH"
 
 # Setup python env
-python3 -m venv /opt/ProjectMAR/env
-
-# Setup additional python dependencies
-wget https://github.com/pyinput/python-uinput/archive/refs/tags/1.0.1.tar.gz -P /tmp/Builds
-tar xf /tmp/Builds/1.0.1.tar.gz -C /tmp/Builds
-cd /tmp/Builds/python-uinput-1.0.1
-/opt/ProjectMAR/env/bin/python3 /tmp/Builds/python-uinput-1.0.1/setup.py build
-/opt/ProjectMAR/env/bin/python3 /tmp/Builds/python-uinput-1.0.1/setup.py install
-
-# Create a new udev user group
-if ! getent group "groupname" > /dev/null 2>&1; then
-	addgroup uinput
-	usermod -a -G uinput $username
-	chown :uinput /dev/uinput
-	chmod 660 /dev/uinput
-fi
-
-# Create secure udev access rule
-if ! grep -q "uinput" "/etc/udev/rules.d/99-uinput.rules"; then
-	echo "KERNEL=""uinput"", MODE=""0660"", GROUP=""uinput""" > /etc/udev/rules.d/99-uinput.rules
-
-	# Restart udev
-	udevadm control --reload-rules
-	systemctl restart udev
-fi
-
-if ! grep -q "uinput" "/etc/modules"; then
-	echo -e "\nuinput" >> /etc/modules
-fi
+python3 -m venv "$_PROJECTM_AR_PATH/env"
 
 # Get all Python dependencies
 /opt/ProjectMAR/env/bin/python3 -m pip install -r /opt/ProjectMAR/requirements.txt
 
 if grep -q "stage2" "/boot/issue.txt"; then
-echo -e "[Unit]\nDescription=ProjectMAR\n\n[Service]\nType=simple\nExecStart=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py\nRestart=on-failure\n\n[Install]\nWantedBy=default.target" > /etc/systemd/user/projectm.service
+echo -e "[Unit]\nDescription=ProjectMAR\n\n[Service]\nType=simple\nExecStart=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nRestart=on-failure\n\n[Install]\nWantedBy=default.target" > /etc/systemd/user/projectm.service
 else
-echo -e "[Desktop Entry]\nName=ProjectMAR\nExec=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py\nType=Application" > /etc/xdg/autostart/projectm.desktop
+echo -e "[Desktop Entry]\nName=ProjectMAR\nExec=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nType=Application" > /etc/xdg/autostart/projectm.desktop
 fi
 
-# Install bluetooth dependencies
-apt install -y pulseaudio-module-bluetooth bluez-tools
+uinputCurrent="1.0.1"
+pythonPackages=$("$_PROJECTM_AR_PATH/env/bin/python3" -m pip list)
+if [[ $pythonPackages =~ "python-uinput $inputCurrent" ]]; then
+  echo "uinput is already installed"
+else
+  # Setup additional python dependencies
+  wget "https://github.com/pyinput/python-uinput/archive/refs/tags/$uinputCurrent.tar.gz" -P /tmp/Builds
+  tar xf "$_TMP_BUILDS/$uinputCurrent.tar.gz" -C "$_TMP_BUILDS"
+  cd "$_TMP_BUILDS/python-uinput-$uinputCurrent"
+  /opt/ProjectMAR/env/bin/python3 "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" build
+  /opt/ProjectMAR/env/bin/python3 "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" install
+  
+  # Create a new udev user group
+  if ! getent group "groupname" > /dev/null 2>&1; then
+  	addgroup uinput
+	usermod -a -G uinput $SUDO_USER
+	chown :uinput /dev/uinput
+	chmod 660 /dev/uinput
+  fi
+  
+  # Create secure udev access rule
+  if ! grep -q "uinput" "/etc/udev/rules.d/99-uinput.rules"; then
+	echo "KERNEL=""uinput"", MODE=""0660"", GROUP=""uinput""" > /etc/udev/rules.d/99-uinput.rules
 
-# Setup bt mode
-sed -i 's/.*#Class = 0x000100.*/Class = 0x41C/' /etc/bluetooth/main.conf
-sed -i 's/^#\(.*DiscoverableTimeout.*\)/\1/' /etc/bluetooth/main.conf
+	# Restart udev
+	udevadm control --reload-rules
+	systemctl restart udev
+  fi
 
-# restart servvice
-systemctl restart bluetooth
+  if ! grep -q "uinput" "/etc/modules"; then
+	echo -e "\nuinput" >> /etc/modules
+  fi
+fi
 
-# Enable bt adapter and turn on pairable
-bluetoothctl power on
-bluetoothctl discoverable on
-bluetoothctl pairable on
-bluetoothctl agent on
-
-# Install bt agent service
-echo -e "[Unit]\nDescription=Bluetooth Auth Agent\nAfter=bluetooth.service\nPartOf=bluetooth.service\n\n[Service]\nType=simple\nExecStart=/usr/bin/bt-agent -c NoInputNoOutput\nKillSignal=SIGUSR1\n\n[Install]\nWantedBy=bluetooth.target" > /etc/systemd/system/bt-agent.service
-
-# Enable and restart service
-systemctl enable bt-agent
-systemctl start bt-agent
-
-# Install the shairport-sync dependencies
-apt install -y --no-install-recommends build-essential git autoconf automake libtool libpulse-dev libpopt-dev libconfig-dev libasound2-dev avahi-daemon libavahi-client-dev libssl-dev libsoxr-dev libplist-dev libsodium-dev libavutil-dev libavcodec-dev libavformat-dev uuid-dev libgcrypt-dev xxd
-
-# Download and build Shairport-Sync
-wget https://github.com/mikebrady/shairport-sync/archive/refs/tags/4.3.5.tar.gz -P /tmp/Builds
-tar xf /tmp/Builds/4.3.5.tar.gz -C /tmp/Builds/
-autoreconf -fi /tmp/Builds/shairport-sync-4.3.5/
-cd /tmp/Builds/shairport-sync-4.3.5
-./configure --sysconfdir=/etc --with-alsa --with-soxr --with-avahi --with-ssl=openssl --with-systemd --with-airplay-2 --with-pa
-make -C /tmp/Builds/shairport-sync-4.3.5/
-make -C /tmp/Builds/shairport-sync-4.3.5/ install
-
-# Download and build nqptp
-wget https://github.com/mikebrady/nqptp/archive/refs/tags/1.2.4.tar.gz -P /tmp/Builds
-tar xf /tmp/Builds/1.2.4.tar.gz -C /tmp/Builds/
-autoreconf -fi /tmp/Builds/nqptp-1.2.4/
-cd /tmp/Builds/nqptp-1.2.4
-./configure --with-systemd-startup
-make -C /tmp/Builds/nqptp-1.2.4/
-make -C /tmp/Builds/nqptp-1.2.4/ install
-
-# Enable and start nqptp service
-systemctl enable nqptp
-systemctl start nqptp
-
-rm -rf /tmp/Builds
+rmdir -rf "$_TMP_BUILDS"

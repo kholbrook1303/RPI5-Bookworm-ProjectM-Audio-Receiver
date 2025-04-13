@@ -72,13 +72,13 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 ## Initial Raspberry Pi Setup
 This step assumes you have already imaged your SD card.  If you need help getting Raspberry Pi OS setup refer to: [Install Raspberry Pi OS using Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 
-Make sure the OS is up-to-date
+Make sure the OS is up-to-date before proceeding!
 ```
 sudo apt update
 sudo apt upgrade
 ```
 
-## ProjectMAR Installation
+## Installation
 
 <details>
 <summary><b>Automated Installation</b></summary>
@@ -288,62 +288,62 @@ Check to ensure your device is configured for PulseAudio by going to sudo raspi-
   Reboot the system
 
   ## Environment Specific Startup Instructions
-    <details>
-    <summary><b>RPI OS Desktop Instructions</b></summary>
-    
-    ### Setup the auto start on boot
-
-    Add ProjectMAR to autostart
-    ```
-    sudo nano /etc/xdg/autostart/projectm.desktop
-    ```
-
-    Add the following configuration
-    ```
-    [Desktop Entry]
-    Name=ProjectMAR
-    Exec=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
-    Type=Application
-    ```
-    </details>
-
-    <details>
-    <summary><b>RPI OS Lite Instructions</b></summary>
+  <details>
+  <summary><b>RPI OS Desktop Instructions</b></summary>
   
-    ### Setup the auto start on boot
+  ### Setup the auto start on boot
 
-    Enable autologon if using the lite version of RPI OS
+  Add ProjectMAR to autostart
+  ```
+  sudo nano /etc/xdg/autostart/projectm.desktop
+  ```
 
-    Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
-    ```
-    sudo raspi-config
-    ```
+  Add the following configuration
+  ```
+  [Desktop Entry]
+  Name=ProjectMAR
+  Exec=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
+  Type=Application
+  ```
+  </details>
 
-    ### Create a startup service
-    Create a service by running
-    ```
-    sudo nano /etc/systemd/user/projectm.service
-    ```
+  <details>
+  <summary><b>RPI OS Lite Instructions</b></summary>
 
-    ```
-    [Unit]
-    Description=ProjectMAR
+  ### Setup the auto start on boot
 
-    [Service]
-    Type=simple
-    ExecStart=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
-    Restart=on-failure
+  Enable autologon if using the lite version of RPI OS
 
-    [Install]
-    WantedBy=default.target
-    ```
+  Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
+  ```
+  sudo raspi-config
+  ```
 
-    Enable and start the service
-    ```
-    systemctl --user enable projectm
-    systemctl --user start projectm
-    ```
-    </details>
+  ### Create a startup service
+  Create a service by running
+  ```
+  sudo nano /etc/systemd/user/projectm.service
+  ```
+
+  ```
+  [Unit]
+  Description=ProjectMAR
+
+  [Service]
+  Type=simple
+  ExecStart=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
+  Restart=on-failure
+
+  [Install]
+  WantedBy=default.target
+  ```
+
+  Enable and start the service
+  ```
+  systemctl --user enable projectm
+  systemctl --user start projectm
+  ```
+  </details>
 
   </details>
 
@@ -604,7 +604,7 @@ Once running goto Spotify on your mobile device and select the devices button.  
 
 </details>
 
-## ProjectMAR Configuration
+## Configuration
 
 <details>
 <summary><b>Setup ProjectM Presets and Textures</b></summary></br>
