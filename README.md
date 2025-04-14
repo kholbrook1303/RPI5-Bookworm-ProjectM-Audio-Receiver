@@ -3,22 +3,24 @@
 ## ProjectMAR News:
 
 ### In this latest update:
-<i><b>Note: </b>This update can break your existing configuration so take caution when updating</i>
+<i><b>Note: </b>This update can break your existing configuration so take caution and ensure to make backups when updating</i>
 
-- All new installer to alleviate the hastle of installing projectMAR and dependencies
+- All new installer to alleviate the hastle of installing projectMAR and dependencies.  When running the script against an existing installation, for now it will backup the existing projectMAR configurations by appending a .bak to the config file.  My plan is to have an upgrade method that migrates the existing configuration with any new changes that may happen in the future starting with this build as a baseline.
 
 - All new configurations which are now located in /opt/ProjectMAR/conf/.  The primary projectMAR.conf has been drastically reduced by moving the sources|sinks|cards|plugins to seperate configurations that are only necessary for manual audio configuration.  The primary purpose for this is to simplify the experience for users that prefer to run the audio control in automatic mode.  Additional example annotations have been added for manual audio configurations.
 
 - Card profile management has been enhanced and also now works in automatic mode by providing some additional configurations:
   ```
   [automatic]
-  # card_device_type defines the type of card added supporting (input|input-output|output)
-  # card_device_modes defines the type of formats accepted
-  card_device_type=input-output
-  card_device_modes=analog-stereo,mono-fallback,stereo-fallback,hmdi-stereo
+  # card_profile_types defines the type of card profile in the order listed (input|input-output|output)
+  # card_profile_modes defines the type of formats accepted
+  card_profile_types=input-output,input,output
+  card_profile_modes=analog-stereo,mono-fallback,stereo-fallback,hdmi-stereo
   ```
 
 - Added support for multiple preset paths in projectMSDL.properties
+
+- Added improvements for handling combined sinks so devices that are removed/unplugged
 
 ### Recently there have been many improvements:
 
@@ -84,6 +86,15 @@ sudo apt upgrade
 <summary><b>Automated Installation</b></summary>
 
 ### Install projectM, frontend SDL, and projectMAR using the new setup script
+<i><b>Note:</b> This is the initial release of this installation script.  Please be aware of the following:
+- A startup entry will be created for both Raspberry Pi OS Desktop or Lite if they do not already exist
+- All existing projectMAR configurations in /opt/ProjectMAR/ will have a '.bak' appended to it 
+- ProjectMSDL will be setup in /opt/ProjectMSDL/ to avoid clutter and seperate the 2 applications
+- If all is successful the tool will cleanup the temporary builds folder and reboot the system
+- Supported audio plugins (Optional Features) will need to be installed seperately
+</i>
+
+Run the following command to run the installer
 ```
 curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/refs/heads/dev/bin/install_projectMAR.sh | sudo bash
 ```
