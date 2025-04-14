@@ -24,8 +24,12 @@ retry_function() {
 }
 
 # Make sure we are not running in the background
-killall python3
-killall projectMSDL
+if pgrep -x python3 > /dev/null; then
+  killall python3
+fi
+if pgrep -x projectMSDL > /dev/null; then
+  killall projectMSDL
+fi
 
 # Check for sudo user account
 if [ -n "$SUDO_USER" ]; then
