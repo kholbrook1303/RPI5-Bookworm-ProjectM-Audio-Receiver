@@ -131,8 +131,9 @@ class AudioCtrl(Controller, threading.Thread):
             if module.argument:
                 args = module.argument.split(' ')
                 for arg in args:
-                    key,val = arg.split('=', 1)
-                    module.args[key] = val
+                    if '=' in arg:
+                        key, val = arg.split('=', 1)
+                        module.args[key] = val
 
     def get_modules(self, module_name):
         modules = list()
@@ -563,10 +564,10 @@ class AudioCtrl(Controller, threading.Thread):
 
     def get_supported_cards(self):
         if self.audio_mode == 'automatic':      # Need to evaluate additonal options for automatic card profile configuration
-            card_device_types = self.config.automatic.get('card_device_types', list())
-            card_device_modes = self.config.automatic.get('card_device_modes', list())
+            card_profile_types = self.config.automatic.get('card_profile_types', list())
+            card_profile_modes = self.config.automatic.get('card_profile_modes', list())
 
-            if len(card_device_types) == 0 or len(card_device_modes) == 0:
+            if len(card_profile_types) == 0 or len(card_profile_modes) == 0:
                 log.warning('Skipping card control as there are missing configurations in projectMAR.conf')
                 return
 
@@ -575,33 +576,45 @@ class AudioCtrl(Controller, threading.Thread):
                     continue
                 
                 supported_card = None
-                for card_profile in card.profile_list:
-                    if card_profile.name == 'off':
-                        continue
+                for card_profile_type in card_profile_types:
+                    for card_profile in card.profile_list:
+                        if card_profile.name == 'off':
+                            continue
 
-                    profile_meta = dict()
-                    for mode in card_profile.name.split('+'):
-                        mode_io, mode_type = mode.split(':')
-                        profile_meta[mode_io] = mode_type
+                        profile_type = None
+                        profile_mode = None
+                        for mode in card_profile.name.split('+'):
 
-                    if 'input-output' in card_device_types and profile_meta.get('input') and profile_meta.get('output'):
-                        if profile_meta['input'] in card_device_modes and profile_meta['output'] in card_device_modes:
+                            try:
+
+                                if ':' in mode:
+                                    profile_mode = mode.split(':')[1]
+
+                                if card_profile.n_sources == 1 and card_profile.n_sinks == 1:
+                                    profile_type = 'input-output'
+
+                                elif card_profile.n_sources == 0 and card_profile.n_sinks == 1:
+                                    profile_type = 'input'
+
+                                elif card_profile.n_sources == 1 and card_profile.n_sinks == 0:
+                                    profile_type = 'output'
+
+                            except:
+                                log.exception('No logic to handle mode {}'.format(mode))
+
+                        if not profile_type or not profile_mode:
+                            continue
+                        elif profile_type != card_profile_type:
+                            continue
+                        elif profile_mode not in card_profile_modes:
+                            continue
+                        else:
                             supported_card = {
                                 'card'      : card,
                                 'profile'   : card_profile.name
                                 }
-                    elif 'input' in card_device_types and profile_meta.get('input'):
-                        if profile_meta['input'] in card_device_modes:
-                            supported_card = {
-                                'card'      : card,
-                                'profile'   : card_profile.name
-                                }
-                    elif 'output' in card_device_types and profile_meta.get('output'):
-                        if profile_meta['output'] in card_device_modes:
-                            supported_card = {
-                                'card'      : card,
-                                'profile'   : card_profile.name
-                                }
+
+                            break
 
                     if supported_card:
                         break

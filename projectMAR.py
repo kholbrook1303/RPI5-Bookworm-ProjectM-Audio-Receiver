@@ -38,7 +38,7 @@ def main(config):
         controllers.append(audio_ctrl)
 
     plugin_ctrl = PluginCtrl(thread_event, config)
-    if config.general.get('audio_plugins', False):
+    if config.general.get('audio_plugin', False):
         controllers.append(plugin_ctrl)
 
     display_ctrl = DisplayCtrl(thread_event, config)
