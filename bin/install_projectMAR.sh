@@ -1,5 +1,32 @@
 #!/usr/bin/env bash
 
+retry_function() {
+    local retries=$2
+    local delay=$3
+    local count=0
+    local command="$1"
+
+    while true; do
+        $command
+        if [ $? -eq 0 ]; then
+            echo "Command '$command' successful"
+            break
+        else
+            count=$((count + 1))
+            echo "Command '$command' failed, retrying in $delay seconds... ($count/$retries)"
+            if [ $count -ge $retries ]; then
+                echo "Max retries reached. Command '$command' failed."
+                return 1
+            fi
+            sleep $delay
+        fi
+    done
+}
+
+# Make sure we are not running in the background
+killall python3
+killall projectMSDL
+
 # Check for sudo user account
 if [ -n "$SUDO_USER" ]; then
 	echo "Current user: $username"
@@ -10,7 +37,7 @@ fi
 
 # Setup a temp build location
 _TMP_BUILDS="/tmp/Builds"
-mkdir "$_TMP_BUILDS"
+mkdir -p "$_TMP_BUILDS"
 
 _PROJECTM_SDL_PATH="/opt/ProjectMSDL"
 _PROJECTM_AR_PATH="/opt/ProjectMAR"
@@ -40,7 +67,7 @@ else
 	# Download/extract/build libprojectM
 	wget "https://github.com/projectM-visualizer/projectm/releases/download/v$projectMCurrent/libprojectM-$projectMCurrent.tar.gz" -P "$_TMP_BUILDS"
 	tar xf "$_TMP_BUILDS/libprojectM-$projectMCurrent.tar.gz" -C "$_TMP_BUILDS"
-	mkdir "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
+	mkdir -p "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
 	cmake DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -S "$_TMP_BUILDS/libprojectM-$projectMCurrent" -B "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
 	cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --parallel && cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --target install
 fi
@@ -52,7 +79,7 @@ else
 	# Download/extract/build libPoco-dev
 	wget "https://github.com/pocoproject/poco/archive/refs/tags/poco-$libPocoCurrent-release.tar.gz" -P "$_TMP_BUILDS"
 	tar xf "$_TMP_BUILDS/poco-$libPocoCurrent-release.tar.gz" -C "$_TMP_BUILDS"
-	mkdir "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build"
+	mkdir -p "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build"
 	cmake -S "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release" -B "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build"
 	cmake --build "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build" --config Release
 	cmake --build "$_TMP_BUILDS/poco-poco-$libPocoCurrent-release/cmake-build" --target install
@@ -68,18 +95,16 @@ apt install -y libsdl2-dev libfreetype-dev
 git clone https://github.com/kholbrook1303/frontend-sdl2.git "$_TMP_BUILDS/frontend-sdl2"
 git config --global --add safe.directory "$_TMP_BUILDS/frontend-sdl2"
 git -C "$_TMP_BUILDS/frontend-sdl2" submodule init
-git -C "$_TMP_BUILDS/frontend-sdl2" submodule update
-mkdir "$_TMP_BUILDS/frontend-sdl2/cmake-build"
+retry_function "git -C $_TMP_BUILDS/frontend-sdl2 submodule update" 10 5
+mkdir -p "$_TMP_BUILDS/frontend-sdl2/cmake-build"
 cmake -S "$_TMP_BUILDS/frontend-sdl2" -B "$_TMP_BUILDS/frontend-sdl2/cmake-build" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$_TMP_BUILDS/frontend-sdl2/cmake-build" --config Release
 
 # Move SDL build to opt
-if ! [ -d "$_PROJECTM_SDL_PATH"];then
-  mkdir "$_PROJECTM_SDL_PATH"
-fi
+mkdir -p "$_PROJECTM_SDL_PATH"
 
 cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL" "$_PROJECTM_SDL_PATH/projectMSDL"
-if ! [ -e "$_PROJECTM_SDL_PATH/projectMSDL.properties" ];then
+if ! [ -f "$_PROJECTM_SDL_PATH/projectMSDL.properties" ];then
   cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL.properties" "$_PROJECTM_SDL_PATH/projectMSDL.properties"
 
   # Set projectMSDL.properties configuration
@@ -114,30 +139,28 @@ if ! grep -q "MESA_GL_VERSION_OVERRIDE=4.5" "/etc/environment"; then
 fi
 
 # Download and configure ProjectMAR
-git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$_TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
-if [ -d "$_PROJECTM_AR_PATH"];then
-  mkdir "$_PROJECTM_AR_PATH"
-fi
+git clone -b dev https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$_TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
+mkdir -p "$_PROJECTM_AR_PATH"
 
 # Check for old config and move to backup file
-if ! [ -e "$_PROJECTM_AR_PATH/projectMAR.conf" ];then
+if ! [ -f "$_PROJECTM_AR_PATH/projectMAR.conf" ];then
   mv "$_PROJECTM_AR_PATH/projectMAR.conf" "$_PROJECTM_AR_PATH/projectMAR.conf.bak"
 fi
 
 # Check for new configs and move to backup file
-if ! [ -e "$_PROJECTM_AR_PATH/conf/projectMAR.conf" ];then
+if [ -f "$_PROJECTM_AR_PATH/conf/projectMAR.conf" ];then
   mv "$_PROJECTM_AR_PATH/conf/projectMAR.conf" "$_PROJECTM_AR_PATH/conf/projectMAR.conf.bak"
 fi
-if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_cards.conf" ];then
+if [ -f "$_PROJECTM_AR_PATH/conf/audio_cards.conf" ];then
   mv "$_PROJECTM_AR_PATH/conf/audio_cards.conf" "$_PROJECTM_AR_PATH/conf/audio_cards.conf.bak"
 fi
-if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_sinks.conf" ];then
+if [ -f "$_PROJECTM_AR_PATH/conf/audio_sinks.conf" ];then
   mv "$_PROJECTM_AR_PATH/conf/audio_sinks.conf" "$_PROJECTM_AR_PATH/conf/audio_sinks.conf.bak"
 fi
-if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_sources.conf" ];then
+if [ -f "$_PROJECTM_AR_PATH/conf/audio_sources.conf" ];then
   mv "$_PROJECTM_AR_PATH/conf/audio_sources.conf" "$_PROJECTM_AR_PATH/conf/audio_sources.conf.bak"
 fi
-if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_plugins.conf" ];then
+if [ -f "$_PROJECTM_AR_PATH/conf/audio_plugins.conf" ];then
   mv "$_PROJECTM_AR_PATH/conf/audio_plugins.conf" "$_PROJECTM_AR_PATH/conf/audio_plugins.conf.bak"
 fi
 
@@ -154,18 +177,23 @@ python3 -m venv "$_PROJECTM_AR_PATH/env"
 "$_PROJECTM_AR_PATH/env/bin/python3" -m pip install -r "$_PROJECTM_AR_PATH/requirements.txt"
 
 if grep -q "stage2" "/boot/issue.txt"; then
-echo -e "[Unit]\nDescription=ProjectMAR\n\n[Service]\nType=simple\nExecStart=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nRestart=on-failure\n\n[Install]\nWantedBy=default.target" > /etc/systemd/user/projectm.service
+  if ! [ -f "/etc/systemd/user/projectm.service" ];then
+    echo -e "[Unit]\nDescription=ProjectMAR\n\n[Service]\nType=simple\nExecStart=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nRestart=on-failure\n\n[Install]\nWantedBy=default.target" > /etc/systemd/user/projectm.service
+  fi
 else
-echo -e "[Desktop Entry]\nName=ProjectMAR\nExec=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nType=Application" > /etc/xdg/autostart/projectm.desktop
+  if ! [ -f "/etc/xdg/autostart/projectm.desktop" ];then
+    echo -e "[Desktop Entry]\nName=ProjectMAR\nExec=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nType=Application" > /etc/xdg/autostart/projectm.desktop
+  fi
 fi
 
 uinputCurrent="1.0.1"
 pythonPackages=$("$_PROJECTM_AR_PATH/env/bin/python3" -m pip list)
-if [[ $pythonPackages =~ "python-uinput $inputCurrent" ]]; then
+if [[ "$pythonPackages" =~ "python-uinput $inputCurrent" ]]; then
   echo "uinput is already installed"
 else
+  echo "uinput is not installed!!!!!"
   # Setup additional python dependencies
-  wget "https://github.com/pyinput/python-uinput/archive/refs/tags/$uinputCurrent.tar.gz" -P /tmp/Builds
+  wget "https://github.com/pyinput/python-uinput/archive/refs/tags/$uinputCurrent.tar.gz" -P "$_TMP_BUILDS"
   tar xf "$_TMP_BUILDS/$uinputCurrent.tar.gz" -C "$_TMP_BUILDS"
   cd "$_TMP_BUILDS/python-uinput-$uinputCurrent"
   "$_PROJECTM_AR_PATH/env/bin/python3" "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" build
@@ -174,25 +202,25 @@ else
   # Create a new udev user group
   if ! getent group "groupname" > /dev/null 2>&1; then
   	addgroup uinput
-	usermod -a -G uinput $SUDO_USER
-	chown :uinput /dev/uinput
-	chmod 660 /dev/uinput
+	  usermod -a -G uinput $SUDO_USER
+	  chown :uinput /dev/uinput
+	  chmod 660 /dev/uinput
   fi
   
   # Create secure udev access rule
   if ! grep -q "uinput" "/etc/udev/rules.d/99-uinput.rules"; then
-	echo "KERNEL=""uinput"", MODE=""0660"", GROUP=""uinput""" > /etc/udev/rules.d/99-uinput.rules
+	  echo "KERNEL=""uinput"", MODE=""0660"", GROUP=""uinput""" > /etc/udev/rules.d/99-uinput.rules
 
-	# Restart udev
-	udevadm control --reload-rules
-	systemctl restart udev
+	  # Restart udev
+	  udevadm control --reload-rules
+	  systemctl restart udev
   fi
 
   if ! grep -q "uinput" "/etc/modules"; then
-	echo -e "\nuinput" >> /etc/modules
+	  echo -e "\nuinput" >> /etc/modules
   fi
 fi
 
-rm -rf "$_TMP_BUILDS"
+#rm -rf "$_TMP_BUILDS"
 
-reboot
+# reboot
