@@ -65,6 +65,7 @@ class AudioCtrl(Controller, threading.Thread):
 
         self.sink_device            = None
         self.source_device          = None
+        self.combined_sink_devices  = list()
         
         self.devices                = DeviceCatalog()
         self.bluetoothCtrl          = BluetoothCtrl(self.thread_event)
@@ -665,20 +666,19 @@ class AudioCtrl(Controller, threading.Thread):
             inactive_sinks.append(supported_sink)
 
         total_sinks = len(active_sinks) + len(inactive_sinks)
-        if self.allow_multiple_sinks and total_sinks > 1 and len(inactive_sinks) > 0:
+        if self.allow_multiple_sinks and total_sinks > 1 and (len(inactive_sinks) > 0 or len(self.combined_sink_devices) != total_sinks):
             if self.module_loaded('module-combine-sink'):
                 log.info('Found an active module-combine-sink module loaded!')
-
                 self.unload_combined_sink_modules()
 
-            combined_sinks = list()
+            self.combined_sink_devices.clear()
             for sink_device in active_sinks:
-                combined_sinks.append(sink_device.name)
+                self.combined_sink_devices.append(sink_device.name)
             for supported_sink in inactive_sinks:
                 supported_sink['device'].active = True
-                combined_sinks.append(supported_sink['device'].name)
+                self.combined_sink_devices.append(supported_sink['device'].name)
 
-            self.load_combined_sinks(combined_sinks)
+            self.load_combined_sinks(self.combined_sink_devices)
             self.pulse.sink_default_set('combined')
             self.sink_device = 'combined'
 
