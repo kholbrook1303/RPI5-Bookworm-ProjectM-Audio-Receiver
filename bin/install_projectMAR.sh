@@ -74,26 +74,29 @@ cmake -S "$_TMP_BUILDS/frontend-sdl2" -B "$_TMP_BUILDS/frontend-sdl2/cmake-build
 cmake --build "$_TMP_BUILDS/frontend-sdl2/cmake-build" --config Release
 
 # Move SDL build to opt
-mkdir /opt/ProjectMSDL
-cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL" "$_PROJECTM_SDL_PATH"
+if ! [ -d "$_PROJECTM_SDL_PATH"];then
+  mkdir "$_PROJECTM_SDL_PATH"
+fi
+
+cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL" "$_PROJECTM_SDL_PATH/projectMSDL"
 if ! [ -e "$_PROJECTM_SDL_PATH/projectMSDL.properties" ];then
-  cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL.properties" "$_PROJECTM_SDL_PATH"
+  cp -r "$_TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL.properties" "$_PROJECTM_SDL_PATH/projectMSDL.properties"
 
   # Set projectMSDL.properties configuration
-  sed -i 's/.*window.fullscreen =.*/window.fullscreen = true/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*window.width =.*/window.width = 1280/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*window.height =.*/window.height = 720/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.texturePath =.*/projectM.fullscreen = \/opt\/ProjectMSDL\/textures/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.displayDuration =.*/projectM.displayDuration  = 60/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.shuffleEnabled =.*/projectM.shuffleEnabled  = false/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.meshX =.*/projectM.meshX = 64/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.meshY =.*/projectM.meshY = 32/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.transitionDuration =.*/projectM.transitionDuration = 0/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.hardCutsEnabled =.*/projectM.hardCutsEnabled = true/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*projectM.hardCutDuration =.*/projectM.hardCutDuration = 30/' /opt/ProjectMSDL/projectMSDL.properties
-  sed -i 's/.*logging.channels.file.path =.*/logging.channels.file.path = \/opt\/ProjectMSDL\/ProjectMSDL.log/' /opt/ProjectMSDL/projectMSDL.properties
+  sed -i 's/.*window.fullscreen =.*/window.fullscreen = true/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*window.width =.*/window.width = 1280/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*window.height =.*/window.height = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.texturePath =.*/projectM.fullscreen = \/opt\/ProjectMSDL\/textures/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.displayDuration =.*/projectM.displayDuration  = 60/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.shuffleEnabled =.*/projectM.shuffleEnabled  = false/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.meshX =.*/projectM.meshX = 64/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.meshY =.*/projectM.meshY = 32/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.transitionDuration =.*/projectM.transitionDuration = 0/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.hardCutsEnabled =.*/projectM.hardCutsEnabled = true/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*projectM.hardCutDuration =.*/projectM.hardCutDuration = 30/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  sed -i 's/.*logging.channels.file.path =.*/logging.channels.file.path = \/opt\/ProjectMSDL\/ProjectMSDL.log/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
 fi
 
 # Setup textures and presets
@@ -112,16 +115,18 @@ fi
 
 # Download and configure ProjectMAR
 git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$_TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
-mkdir "$_PROJECTM_AR_PATH"
+if [ -d "$_PROJECTM_AR_PATH"];then
+  mkdir "$_PROJECTM_AR_PATH"
+fi
 
 # Check for old config and move to backup file
-if ! [ -e "$_PROJECTM_AR_PATH/projectMSDL.conf" ];then
-  mv "$_PROJECTM_AR_PATH/projectMSDL.conf" "$_PROJECTM_AR_PATH/projectMSDL.conf.bak"
+if ! [ -e "$_PROJECTM_AR_PATH/projectMAR.conf" ];then
+  mv "$_PROJECTM_AR_PATH/projectMAR.conf" "$_PROJECTM_AR_PATH/projectMAR.conf.bak"
 fi
 
 # Check for new configs and move to backup file
-if ! [ -e "$_PROJECTM_AR_PATH/conf/projectMSDL.conf" ];then
-  mv "$_PROJECTM_AR_PATH/conf/projectMSDL.conf" "$_PROJECTM_AR_PATH/conf/projectMSDL.conf.bak"
+if ! [ -e "$_PROJECTM_AR_PATH/conf/projectMAR.conf" ];then
+  mv "$_PROJECTM_AR_PATH/conf/projectMAR.conf" "$_PROJECTM_AR_PATH/conf/projectMAR.conf.bak"
 fi
 if ! [ -e "$_PROJECTM_AR_PATH/conf/audio_cards.conf" ];then
   mv "$_PROJECTM_AR_PATH/conf/audio_cards.conf" "$_PROJECTM_AR_PATH/conf/audio_cards.conf.bak"
@@ -146,7 +151,7 @@ chmod 777 -R "$_PROJECTM_AR_PATH"
 python3 -m venv "$_PROJECTM_AR_PATH/env"
 
 # Get all Python dependencies
-/opt/ProjectMAR/env/bin/python3 -m pip install -r /opt/ProjectMAR/requirements.txt
+"$_PROJECTM_AR_PATH/env/bin/python3" -m pip install -r "$_PROJECTM_AR_PATH/requirements.txt"
 
 if grep -q "stage2" "/boot/issue.txt"; then
 echo -e "[Unit]\nDescription=ProjectMAR\n\n[Service]\nType=simple\nExecStart=$_PROJECTM_AR_PATH/env/bin/python3 $_PROJECTM_AR_PATH/projectMAR.py\nRestart=on-failure\n\n[Install]\nWantedBy=default.target" > /etc/systemd/user/projectm.service
@@ -163,8 +168,8 @@ else
   wget "https://github.com/pyinput/python-uinput/archive/refs/tags/$uinputCurrent.tar.gz" -P /tmp/Builds
   tar xf "$_TMP_BUILDS/$uinputCurrent.tar.gz" -C "$_TMP_BUILDS"
   cd "$_TMP_BUILDS/python-uinput-$uinputCurrent"
-  /opt/ProjectMAR/env/bin/python3 "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" build
-  /opt/ProjectMAR/env/bin/python3 "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" install
+  "$_PROJECTM_AR_PATH/env/bin/python3" "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" build
+  "$_PROJECTM_AR_PATH/env/bin/python3" "$_TMP_BUILDS/python-uinput-$uinputCurrent/setup.py" install
   
   # Create a new udev user group
   if ! getent group "groupname" > /dev/null 2>&1; then
