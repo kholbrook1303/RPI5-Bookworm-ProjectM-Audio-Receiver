@@ -5,6 +5,8 @@
 ### In this latest update:
 <i><b>Note: </b>This update can break your existing configuration so take caution and ensure to make backups when updating</i>
 
+- All new installer to alleviate the hastle of installing projectMAR and dependencies.  When running the script against an existing installation, for now it will backup the existing projectMAR configurations by appending a .bak to the config file.  My plan is to have an upgrade method that migrates the existing configuration with any new changes that may happen in the future starting with this build as a baseline.
+
 - All new configurations which are now located in /opt/ProjectMAR/conf/.  The primary projectMAR.conf has been drastically reduced by moving the sources|sinks|cards|plugins to seperate configurations that are only necessary for manual audio configuration.  The primary purpose for this is to simplify the experience for users that prefer to run the audio control in automatic mode.  Additional example annotations have been added for manual audio configurations.
 
 - Card profile management has been enhanced and also now works in automatic mode by providing some additional configurations:
@@ -79,6 +81,26 @@ sudo apt upgrade
 ```
 
 ## Installation
+
+<details>
+<summary><b>Automated Installation</b></summary>
+
+### Install projectM, frontend SDL, and projectMAR using the new setup script
+<i><b>Note:</b> This is the initial release of this installation script.  Please be aware of the following:
+- A startup entry will be created for both Raspberry Pi OS Desktop or Lite if they do not already exist
+- All existing projectMAR configurations in /opt/ProjectMAR/ will have a '.bak' appended to it 
+- ProjectMSDL will be setup in /opt/ProjectMSDL/ to avoid clutter and seperate the 2 applications
+- If all is successful the tool will cleanup the temporary builds folder and reboot the system
+- Supported audio plugins (Optional Features) will need to be installed seperately
+</i>
+
+Run the following command to run the installer
+```
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash
+```
+
+<i><b>Note:</b> Once the script has completed the system will be rebooted and you should have the visualizer up and running.  To exit and proceed with additional plugins hit ctrl+q to quit projectM</i>
+</details>
 
 <details>
 <summary><b>Manual Installation</b></summary></br>
