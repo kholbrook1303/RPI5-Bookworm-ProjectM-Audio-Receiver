@@ -384,19 +384,6 @@ bluetoothctl pairable on
 bluetoothctl agent on
 ```
 
-Reboot
-```
-sudo reboot
-```
-
-```
-bluetoothctl
-```
-Pair your device then trust it when you see Device <MAC> Connected: yes
-```
-trust DC:DC:E2:FF:04:A1
-```
-
 Auto pairing / trusting / no PIN
 ```
 sudo apt-get install bluez-tools
@@ -427,6 +414,12 @@ Enable and start the Bluetooth service
 sudo systemctl enable bt-agent
 sudo systemctl start bt-agent
 ```
+
+Reboot
+```
+sudo reboot
+```
+
 </details>
 
 <details>
