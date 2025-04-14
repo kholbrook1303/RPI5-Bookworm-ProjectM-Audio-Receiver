@@ -14,6 +14,13 @@ from lib.config import APP_ROOT, Config
 
 log = logging.getLogger()
 
+UINPUT_INSTALLED = False
+try:
+    import uinput
+    UINPUT_INSTALLED = True
+except:
+    log.warning('python-uinput is not installed and therefore will not be used!')
+
 class PluginDevice:
     def __init__(self, device_name, device_index, device_meta=None):
         self.name           = device_name
@@ -45,12 +52,20 @@ class AudioCtrl(Controller, threading.Thread):
         self.thread_event = thread_event
         
         self.audio_mode             = self.config.audio_receiver.get('audio_mode', 'automatic')
-        self.card_ctrl              = self.config.audio_receiver.get('card_ctrl', False)
         self.io_device_mode         = self.config.audio_receiver.get('io_device_mode', 'aux')
         self.allow_multiple_sinks   = self.config.audio_receiver.get('allow_multiple_sinks', True)
         self.allow_multiple_sources = self.config.audio_receiver.get('allow_multiple_sources', True)
+
+        config_path = os.path.join(APP_ROOT, 'conf')
+
+        self.audio_cards_config     = Config(os.path.join(config_path, 'audio_cards.conf'))
+        self.audio_plugins_config   = Config(os.path.join(config_path, 'audio_plugins.conf'))
+        self.audio_sinks_config     = Config(os.path.join(config_path, 'audio_sinks.conf'))
+        self.audio_sources_config   = Config(os.path.join(config_path, 'audio_sources.conf'))
+
         self.sink_device            = None
         self.source_device          = None
+        self.combined_sink_devices  = list()
         
         self.devices                = DeviceCatalog()
         self.bluetoothCtrl          = BluetoothCtrl(self.thread_event)
@@ -111,42 +126,15 @@ class AudioCtrl(Controller, threading.Thread):
 
         return self.devices.__dict__
 
-    def update_card_devices(self):
-        cards = self.pulse.card_list()
-
-        for card in cards:
-            self.devices.cards[card.name] = card
-
-    def control_card_devices(self):
-        for card_id in self.config.audio_receiver.get("cards", list()):
-            card_meta = getattr(self.config, card_id)
-            card_name = card_meta['name']
-            if not card_name:
-                log.warning('Sink {} is missing a name'.format(card_id))
-                continue
-
-            for card_name, card in self.devices.cards.items():
-                if card_name != card_meta['name']:
-                    continue
-
-                if card.profile_active.name == card_meta['profile']:
-                    continue
-
-                for card_profile in card.profile_list:
-                    if card_profile.name != card_meta['profile']:
-                        continue
-
-                    log.info('Changing profile for card {} from {} to {}'.format(card.name, card.profile_active.name, card_meta['profile']))
-                    self.pulse.card_profile_set(card, card_profile)
-
     def get_module_arguments(self, module):
         module.args = dict()
         if hasattr(module, 'argument'):
             if module.argument:
                 args = module.argument.split(' ')
                 for arg in args:
-                    key,val = arg.split('=', 1)
-                    module.args[key] = val
+                    if '=' in arg:
+                        key, val = arg.split('=', 1)
+                        module.args[key] = val
 
     def get_modules(self, module_name):
         modules = list()
@@ -382,8 +370,8 @@ class AudioCtrl(Controller, threading.Thread):
                 yield supported_sink
 
         elif self.audio_mode == 'manual':
-            for sink_id in self.config.manual.get('sink_devices', list()):
-                sink_meta = getattr(self.config, sink_id)
+            for sink_id in self.audio_sinks_config.general.get('audio_sinks', list()):
+                sink_meta = getattr(self.audio_sinks_config, sink_id)
                 sink_name = sink_meta['name']
                 if not sink_name:
                     log.warning('Sink {} is missing a name'.format(sink_id))
@@ -499,7 +487,6 @@ class AudioCtrl(Controller, threading.Thread):
             elif self.sink_device and source_device.type == 'mic':
                 self.load_loopback_module(source_device.name, self.ar_sink)
 
-
     def get_supported_source_devices(self):
         if self.audio_mode == 'automatic':
             for source_name, source_device in self.devices.source_devices.items():
@@ -524,8 +511,8 @@ class AudioCtrl(Controller, threading.Thread):
                 yield supported_source
 
         elif self.audio_mode == 'manual':
-            for source_id in self.config.manual.get('source_devices', list()):
-                source_meta = getattr(self.config, source_id)
+            for source_id in self.audio_sources_config.general.get('audio_sources', list()):
+                source_meta = getattr(self.audio_sources_config, source_id)
                 source_name = source_meta['name']
                 if not source_name:
                     continue
@@ -552,10 +539,120 @@ class AudioCtrl(Controller, threading.Thread):
 
                     yield supported_source
 
+    def update_card_devices(self):
+        cards = self.pulse.card_list()
+
+        # Check for any disconnected cards
+        for card_name in list(self.devices.cards):
+            if not any (card_name == card.name for card in cards):
+                log.warning('Card {} has been disconnected'.format(card_name))
+                self.devices.cards.pop(card_name)
+
+        for card in cards:
+            if self.devices.cards.get(card.name):
+                continue
+            
+            card.active = False
+            card.device = 'pa'
+            self.devices.cards[card.name] = card
+
+    def control_card_device(self, card, card_profile):
+        if card.profile_active.name == card_profile:
+            log.info('Profile {} is already set for card {} '.format(card_profile, card.name))
+        else:
+            log.info('Setting {} profile for card {} '.format(card_profile, card.name))
+            self.pulse.card_profile_set(card, card_profile)
+
+    def get_supported_cards(self):
+        if self.audio_mode == 'automatic':      # Need to evaluate additonal options for automatic card profile configuration
+            card_profile_types = self.config.automatic.get('card_profile_types', list())
+            card_profile_modes = self.config.automatic.get('card_profile_modes', list())
+
+            if len(card_profile_types) == 0 or len(card_profile_modes) == 0:
+                log.warning('Skipping card control as there are missing configurations in projectMAR.conf')
+                return
+
+            for card_name, card in self.devices.cards.items():
+                if card.active:
+                    continue
+                
+                supported_card = None
+                for card_profile_type in card_profile_types:
+                    for card_profile in card.profile_list:
+                        if card_profile.name == 'off':
+                            continue
+
+                        profile_type = None
+                        profile_mode = None
+                        for mode in card_profile.name.split('+'):
+
+                            try:
+
+                                if ':' in mode:
+                                    profile_mode = mode.split(':')[1]
+
+                                if card_profile.n_sources == 1 and card_profile.n_sinks == 1:
+                                    profile_type = 'input-output'
+
+                                elif card_profile.n_sources == 0 and card_profile.n_sinks == 1:
+                                    profile_type = 'input'
+
+                                elif card_profile.n_sources == 1 and card_profile.n_sinks == 0:
+                                    profile_type = 'output'
+
+                            except:
+                                log.exception('No logic to handle mode {}'.format(mode))
+
+                        if not profile_type or not profile_mode:
+                            continue
+                        elif profile_type != card_profile_type:
+                            continue
+                        elif profile_mode not in card_profile_modes:
+                            continue
+                        else:
+                            supported_card = {
+                                'card'      : card,
+                                'profile'   : card_profile.name
+                                }
+
+                            break
+
+                    if supported_card:
+                        break
+
+                if supported_card:
+                    yield supported_card
+
+        elif self.audio_mode == 'manual':
+            for card_id in self.audio_cards_config.general.get('audio_cards', list()):
+                card_meta = getattr(self.audio_cards_config, card_id)
+                card_name = card_meta['name']
+                if not card_name:
+                    continue
+
+                if self.devices.cards.get(card_name):
+                    card = self.devices.cards[card_name]
+                    if card.active:
+                        continue
+
+                    for card_profile in card.profile_list:
+                        if card_profile.name == card_meta['profile']:
+                            supported_card = {
+                                'card'      : card,
+                                'profile'   : card_meta['profile']
+                                }
+
+                            yield supported_card
+
     def handle_devices(self):
         self.update_card_devices()
-        if self.card_ctrl:
-            self.control_card_devices()
+
+        for supported_card in self.get_supported_cards():
+            card = supported_card['card']
+            card_profile = supported_card['profile']
+
+            self.control_card_device(card, card_profile)
+            card.active = True
 
         self.update_sink_devices()
 
@@ -569,19 +666,19 @@ class AudioCtrl(Controller, threading.Thread):
             inactive_sinks.append(supported_sink)
 
         total_sinks = len(active_sinks) + len(inactive_sinks)
-        if self.allow_multiple_sinks and total_sinks > 1 and len(inactive_sinks) > 0:
+        if self.allow_multiple_sinks and total_sinks > 1 and (len(inactive_sinks) > 0 or len(self.combined_sink_devices) != total_sinks):
             if self.module_loaded('module-combine-sink'):
-                log.info('Found an active module-combined-sink module loaded!')
+                log.info('Found an active module-combine-sink module loaded!')
                 self.unload_combined_sink_modules()
 
-            combined_sinks = list()
+            self.combined_sink_devices.clear()
             for sink_device in active_sinks:
-                combined_sinks.append(sink_device.name)
+                self.combined_sink_devices.append(sink_device.name)
             for supported_sink in inactive_sinks:
                 supported_sink['device'].active = True
-                combined_sinks.append(supported_sink['device'].name)
+                self.combined_sink_devices.append(supported_sink['device'].name)
 
-            self.load_combined_sinks(combined_sinks)
+            self.load_combined_sinks(self.combined_sink_devices)
             self.pulse.sink_default_set('combined')
             self.sink_device = 'combined'
 
@@ -683,6 +780,8 @@ class PluginCtrl(Controller, threading.Thread):
 
         self.config = config
         self.thread_event = thread_event
+        
+        self.audio_plugins_config = Config(os.path.join(APP_ROOT, 'conf', 'audio_plugins.conf'))
                     
     def monitor_output(self, plugin_name, plugin_process):
         for line in self._read_stdout(plugin_process):
@@ -694,10 +793,10 @@ class PluginCtrl(Controller, threading.Thread):
 
     def run(self):
         self._get_running_processes()
-        plugins = self.config.audio_receiver.get('plugins', list())
+        plugins = self.audio_plugins_config.general.get('audio_plugins', list())
         for plugin in plugins:
             try:
-                plugin_meta     = getattr(self.config, plugin)
+                plugin_meta     = getattr(self.audio_plugins_config, plugin)
                 plugin_name     = plugin_meta.get('name', '')
                 plugin_path     = plugin_meta.get('path', '')
                 plugin_restore  = plugin_meta.get('restore', True)
@@ -918,12 +1017,12 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.screenshot_path = os.path.join(self.projectm_path, 'preset_screenshots')
         if not os.path.exists(self.screenshot_path):
             os.makedirs(self.screenshot_path)
-        self.screenshots_enabled = self.config.projectm.get('screenshots_enabled', False)
         
         self.preset_start = 0
+        self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
         self.preset_index = self.config.projectm.get('preset_index', False)
         self.preset_monitor = self.config.projectm.get('preset_monitor', False)
-        self.preset_advanced_shuffle = self.config.projectm.get('advanced_shuffle', False)
+        self.preset_screenshots = self.config.projectm.get('preset_screenshots', False)
 
         # ProjectM Configurations
         config_path = os.path.join(self.projectm_path, 'projectMSDL.properties')
@@ -931,7 +1030,22 @@ class ProjectMCtrl(Controller, threading.Thread):
 
         self.preset_shuffle = self.projectm_config.projectm['projectm.shuffleenabled']
         self.preset_display_duration = self.projectm_config.projectm['projectm.displayduration']
-        self.preset_path = self.projectm_config.projectm['projectm.presetpath'].replace('${application.dir}', self.projectm_path)
+
+        preset_path_index = 0
+        self.preset_paths = list()
+        while True:
+            config_key = 'projectm.presetpath'
+            if preset_path_index > 0:
+                config_key += '.{}'.format(preset_path_index)
+
+            if self.projectm_config.projectm.get(config_key, None):
+                log.info('Adding preset path {} {}'.format(config_key, self.projectm_config.projectm[config_key]))
+                self.preset_paths.append(self.projectm_config.projectm[config_key])
+
+            else:
+                break
+
+            preset_path_index += 1
             
     def take_screenshot(self, preset):
         preset_name = os.path.splitext(preset)[0]
@@ -961,7 +1075,7 @@ class ProjectMCtrl(Controller, threading.Thread):
                 
                     # Take a preview screenshot
                     if self.display_ctrl._environment == 'desktop':
-                        if self.screenshots_enabled and self.audio_ctrl.source_device:
+                        if self.preset_screenshots and self.audio_ctrl.source_device:
                             self.take_screenshot(preset)
             except:
                 log.exception('Failed to process output: {}'.format(line))
@@ -975,9 +1089,17 @@ class ProjectMCtrl(Controller, threading.Thread):
                 if duration >= (self.preset_display_duration + 5):
                     log.warning('The visualization has not changed in the alloted timeout!')
 
-                    log.info('Manually transitioning to the next visualization...')
-                    xautomation_process = self._execute(['xte'])
-                    xautomation_process.communicate(input='key n\n')
+                    try:
+                        events = [
+                            uinput.KEY_N, uinput.KEY_P
+                            ]
+
+                        log.info('Manually transitioning to the next visualization...')
+                        with uinput.Device(events) as device:
+                            time.sleep(1)
+                            device.emit_click(uinput.KEY_N)
+                    except:
+                        log.exception('Failed to access uinput device!')
                 
             time.sleep(1)
 
@@ -1000,11 +1122,12 @@ class ProjectMCtrl(Controller, threading.Thread):
             
     def manage_playlist(self):
         presets = list()
-        for root, dirs, files in os.walk(self.preset_path):
-            for name in files:
-                preset_path = os.path.join(root, name)
-                if not preset_path in presets:
-                    presets.append(preset_path)
+        for preset_path in self.preset_paths:
+            for root, dirs, files in os.walk(preset_path):
+                for name in files:
+                    preset_path = os.path.join(root, name)
+                    if not preset_path in presets:
+                        presets.append(preset_path)
 
         if self.preset_advanced_shuffle == True:
             random.shuffle(presets)
@@ -1042,7 +1165,7 @@ class ProjectMCtrl(Controller, threading.Thread):
         output_thread.start()
         self._threads['ProjectMDSL_Output'] = output_thread
         
-        if self.preset_monitor:
+        if self.preset_monitor and UINPUT_INSTALLED:
             # Start thread to trigger the next preset 
             # in the event of a hang
             hang_thread = Thread(

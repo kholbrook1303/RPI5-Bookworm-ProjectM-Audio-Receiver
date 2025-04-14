@@ -26,11 +26,17 @@ class Config:
                 setattr(self, section, dict())
 
                 for name, str_value in config.items(section):
-                    if name.endswith("_devices"):
+                    if name == "audio_plugins":
                         value = config.get(section, name).split(",")
-                    elif name == "plugins":
+                    elif name == "audio_cards":
                         value = config.get(section, name).split(",")
-                    elif name == "cards":
+                    elif name == "audio_sinks":
+                        value = config.get(section, name).split(",")
+                    elif name == "audio_sources":
+                        value = config.get(section, name).split(",")
+                    elif name == "card_profile_types":
+                        value = config.get(section, name).split(",")
+                    elif name == "card_profile_modes":
                         value = config.get(section, name).split(",")
                     elif self._is_str_bool(str_value):
                         value = config.getboolean(section, name)
