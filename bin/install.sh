@@ -33,7 +33,7 @@ fi
 
 # Check for sudo user account
 if [ -n "$SUDO_USER" ]; then
-	echo "Current user: $username"
+	echo "Current user: $SUDO_USER"
 else
 	echo "Unable to identify SUDO_USER"
 	exit 1
@@ -45,6 +45,20 @@ mkdir -p "$_TMP_BUILDS"
 
 _PROJECTM_SDL_PATH="/opt/ProjectMSDL"
 _PROJECTM_AR_PATH="/opt/ProjectMAR"
+
+videoDevices=$(find /sys/devices -name "edid")
+echo "$videoDevices"
+_VIDEO_OUTPUT=""
+if [[ "$videoDevices" =~ "Composite" ]]; then
+  _VIDEO_OUTPUT="composite"
+elif [[ "$videoDevices" =~ "HDMI" ]]; then
+  _VIDEO_OUTPUT="hdmi"
+else
+  echo "Unable to detect video output device!"
+  exit 1
+fi
+
+echo "Found $_VIDEO_OUTPUT video output!"
 
 ldconfigOutput=$(ldconfig -v)
 
@@ -59,7 +73,7 @@ systemctl --user unmask pulseaudio
 systemctl --user --now disable pipewire-media-session.service
 systemctl --user --now disable pipewire pipewire-pulse
 systemctl --user --now enable pulseaudio.service pulseaudio.socket
-apt remove pipewire-audio-client-libraries pipewire
+apt remove -y pipewire-audio-client-libraries pipewire
 
 projectMCurrent="4.1.4"
 if [[ "$ldconfigOutput" =~ "libprojectM-4.so.$projectMCurrent" ]]; then
@@ -73,7 +87,7 @@ else
 	tar xf "$_TMP_BUILDS/libprojectM-$projectMCurrent.tar.gz" -C "$_TMP_BUILDS"
 	mkdir -p "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
 	cmake DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -S "$_TMP_BUILDS/libprojectM-$projectMCurrent" -B "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build"
-	cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --parallel && cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --target install
+	cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" && cmake --build "$_TMP_BUILDS/libprojectM-$projectMCurrent/cmake-build" --target install
 fi
 
 libPocoCurrent="1.12.5p2"
@@ -114,8 +128,16 @@ if ! [ -f "$_PROJECTM_SDL_PATH/projectMSDL.properties" ];then
   # Set projectMSDL.properties configuration
   sed -i 's/.*window.fullscreen =.*/window.fullscreen = true/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
   sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
-  sed -i 's/.*window.width =.*/window.width = 1280/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
-  sed -i 's/.*window.height =.*/window.height = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  
+  if [ $_VIDEO_OUTPUT = "composite" ]; then
+    sed -i 's/.*window.width =.*/window.width = 320/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    sed -i 's/.*window.height =.*/window.height = 240/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    sed -i 's/.*projectM.fps =.*/projectM.fps = 30/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  elif [ $_VIDEO_OUTPUT = "hdmi" ]; then
+    sed -i 's/.*window.width =.*/window.width = 1280/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    sed -i 's/.*window.height =.*/window.height = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+  fi
+
   sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
   sed -i 's/.*projectM.texturePath =.*/projectM.fullscreen = \/opt\/ProjectMSDL\/textures/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
   sed -i 's/.*projectM.displayDuration =.*/projectM.displayDuration  = 60/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
