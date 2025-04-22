@@ -3,7 +3,15 @@
 ## ProjectMAR News:
 
 ### In this latest update:
-<i><b>Note: </b>This update can break your existing configuration so take caution and ensure to make backups when updating</i>
+***Note:** If you are not up-to-date, you may find that there are drastic differeneces in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
+
+- Added support for Raspberry Pi 4.  RPI4 has to run at reduced resolutions as well as reduced FPS due to the graphics limitations.  Installer script has been updated to accomodate this.
+
+- Added support for composite video per a user request to support composite for old CRT setups for more of a retro feel.
+
+- Resolved an issue with the installer not handling a apt prompt.
+
+### Recently there have been many improvements:
 
 - All new installer to alleviate the hastle of installing projectMAR and dependencies.  When running the script against an existing installation, for now it will backup the existing projectMAR configurations by appending a .bak to the config file.  My plan is to have an upgrade method that migrates the existing configuration with any new changes that may happen in the future starting with this build as a baseline.
 
@@ -21,18 +29,6 @@
 - Added support for multiple preset paths in projectMSDL.properties
 
 - Added improvements for handling combined sinks so devices that are removed/unplugged
-
-### Recently there have been many improvements:
-
-- Added an option to manage card profiles.  This is primarily for those using a DAC/ADC hat to ensure the input/output profile is loaded accordingly.
-
-- Added Spotify service to the supported plugins list with instructions for users with Spotify premium.  Due to the streaming services popularity I went ahead and purchased a month so I could test premium Spotify with the Spotify Connect feature.  I ended up going with Spotifyd over Raspotify as I encountered allot of issues trying to get Raspotify to work seamlessly while also being picked up by the visualizer.
-
-- Updated builds for libprojectM and projectMSDL.  There have been numerous improvements to libprojectM since the 4.0 release however I have been hesitant to update to it due to a performance impact.  I have decided the performance impact is worth it for the issues it fixes, <b>so you may have to remove some presets if they exhibit low fps</b>.  To alleviate the work I have a new option for hand selected presets!
-
-- Hand selected presets are now available (Took me a while to go through the 10K batch)!  These presets and textures are hosted on a new repository with instructions on how to get them applied.
-
-- Various improvements and some bug fixes.  Because some of the configuration settings have changed, please migrate with caution.  Furthermore I have updated to install instructions to avoid clutter in the user home directory and to also split up the projectMSDL and projectMAR installation directories
 
 ## What is this?
 The ProjectM Audio Receiver will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
@@ -53,9 +49,11 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 
 ## Hardware Requirements:
 
-- Raspberry Pi 5 - 2GB, 4GB, or 8GB
+- Raspberry Pi
+  - Raspberry Pi 4  **This will only work with a reduced resolution and fps*
+  - Raspberry Pi 5
 - 5v/5A USB-C Power Supply
-- SanDisk 32GB Extreme PRO microSD
+- SD Card (I recommend the SanDisk 32GB Extreme PRO microSD)
 - Case with active cooling (The following are my recommendations)
     - Hifiberry Steel case for RP5 w/active cooling and w/DAC+ ADC card for analog input/output
     - Argon NEO 5 BRED Case for Raspberry Pi 5 with built-in fan
@@ -63,6 +61,7 @@ Originally the intention was to add a video signal to the Phono input of my Mara
 - Input device of your choosing (You can always use built in Bluetooth; just know there is potential for interference with built in card)
     - USB Microphone
     - USB Line in/Aux
+    - DAC/ADC
 
 ## Software Requirements:
 - Raspberry Pi OS Bookworm:
@@ -107,7 +106,7 @@ curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM
 
   Lets add a directory to store our builds so we dont clutter the home directory
   ```
-  mkdir /tmp/Builds
+  mkdir -P /tmp/Builds
   ```
 
   ### Building ProjectM and Dependencies
@@ -208,8 +207,6 @@ curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM
   MESA_GL_VERSION_OVERRIDE=4.5
   ```
 
-  Reboot
-
   </details>
 
   <details>
@@ -296,6 +293,9 @@ curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM
   ```
 
   Reboot the system
+  ```
+  sudo reboot
+  ```
 
   ## Environment Specific Startup Instructions
   <details>
@@ -357,6 +357,141 @@ curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM
 
   </details>
 
+</details>
+
+## Configuration
+
+<details>
+<summary><b>Setup ProjectM Presets and Textures</b></summary></br>
+
+***Note:** If you ran the automated installation you already have my presets applied.  Proceed if you would like to add or change anything.*
+
+The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.  The projectM library does not ship with any presets or textures so you want to grab them and deploy them.
+
+There are many options available to you for presets and textures.  In the following I have outlined 3 options:
+  <details>
+  <summary><b>GitHub Repo - RPI5-ProjectM-Presets-Textures</b> <i>My hand selected presets and textures for the latest libprojectM release for the Raspberry Pi 5</i></summary>
+
+  ### Download and move the presets and textures
+  ```
+  mkdir -p /tmp/Builds
+  cd /tmp/Builds
+  git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git
+  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMSDL/ -R
+  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMSDL/ -R
+  ```
+
+  </details>
+
+  <details>
+  <summary><b>GitHub Repo - projectM-presets-rpi5</b> <i>Presets and textures repository managed by mickabrig7, and benchmarked for the Raspberry Pi 5</i></summary>
+
+  ### Download and move the presets and textures
+  *Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
+  ```
+  mkdir -p /tmp/Builds
+  cd /tmp/Builds
+  git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
+  cp /tmp/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMSDL/ -R
+  cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMSDL/ -R
+  ```
+
+  Adjust /opt/ProjectMSDL/projectMSDL.properties to include the preset and texture directories
+  ```
+  projectM.presetPath = /opt/ProjectMSDL/presets
+  projectM.texturePath = /opt/ProjectMSDL/textures
+  ```
+
+  </details>
+
+
+  <details>
+  <summary><b>Manual Method</b> <i>Resources to obtain community presets and textures</i></summary>
+
+  ### General Presets and Textures:
+  Textures:
+  - [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
+    use with _any_ preset pack!
+
+  Presets:
+  - [Cream of the Crop Pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop) - A collection of about 10K
+    presets compiled by Jason Fletcher. Currently, projectM's default preset pack.
+  - [Classic projectM Presets](https://github.com/projectM-visualizer/presets-projectm-classic) - A bit over 4K presets
+    shipped with previous versions of projectM.
+  - [Milkdrop 2 Presets](https://github.com/projectM-visualizer/presets-milkdrop-original) - The original preset
+    collection shipped with Milkdrop and Winamp.
+  - [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
+
+  </br></details>
+
+</details>
+
+<details>
+<summary><b>ProjectMSDL Configuration</b></summary></br>
+
+***Note:** If you ran the automated installation you already have the appropriate settings applied.  Only proceed if you would like to apply additional configurations.  I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.  Furthermore when exclusive mode is enabled but not fullscreen, you will get a cursor that can only be removed by hitting escape.  While this also sounds strange, only set the window size resolution.*
+
+
+Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configurations to the below:
+```
+window.fullscreen = true
+
+window.fullscreen.exclusiveMode = true
+
+# If using a Raspberry Pi 4, ensure this is set to no more than 720x480 and the projectM.fps is set to 30
+window.width = 1280
+window.height = 720
+
+projectM.presetPath = /opt/ProjectMSDL/presets
+projectM.texturePath = /opt/ProjectMSDL/textures
+
+## This setting is optional
+projectM.displayDuration = 60
+
+## This setting is optional (ProjectMAR has its own advanced shuffling that allows you to go back to previous)
+projectM.shuffleEnabled = false
+
+projectM.meshX = 64
+projectM.meshY = 32
+
+projectM.transitionDuration = 0
+
+## These settings are optional (When enabled a preset transition will occur on a "hard cut")
+projectM.hardCutsEnabled = true
+projectM.hardCutDuration = 30
+```
+
+</details>
+
+<details>
+<summary><b>ProjectMAR Configuration</b></summary></br>
+  By default, ProjectMAR is set to automatic (/opt/ProjectMAR/conf/projectMAR.conf).  This means that it will handle the audio devices automatically so you do not need to have advanced knowledge of your devices.
+
+  If you prefer to define your devices and their feature sets, switch the audio_mode to manual and proceed with device configuration in the following configuration files:
+  - audio_cards.conf
+  - audio_sources.conf
+  - audio_sinks.conf
+  - audio_plugins.conf
+</details>
+
+<details>
+<summary><b>PulseAudio Configuration</b></summary></br>
+
+To enable higher sample rates in Pulseaudio (Specifically for various DACs) ensure you add the following to Pulseaudio daemon config (/etc/pulse/daemon.conf)
+```
+resample-method = soxr-vhq
+avoid-resampling = true
+default-sample-format = s24le
+default-sample-rate = 44100
+alternate-sample-rate = 48000
+```
+
+Either restart or you can run 
+```
+systemctl --user restart pulseaudio.socket
+systemctl --user restart pulseaudio.service
+
+```
 </details>
 
 ## Optional Features
@@ -452,7 +587,7 @@ sudo apt install --no-install-recommends build-essential git autoconf automake l
 ### Obtain the latest source
 Clone and build shairport-sync
 ```
-
+mkdir -p /tmp/Builds
 cd /tmp/Builds
 wget https://github.com/mikebrady/shairport-sync/archive/refs/tags/4.3.7.tar.gz
 tar xf 4.3.7.tar.gz
@@ -469,6 +604,7 @@ sudo make install
 
 Clone and build nqptp
 ```
+mkdir -p /tmp/Builds
 cd /tmp/Builds
 wget https://github.com/mikebrady/nqptp/archive/refs/tags/1.2.4.tar.gz
 tar xf 1.2.4.tar.gz
@@ -508,6 +644,7 @@ arguments=
 ### Get PlexAmp and NodeJS
 
 ```
+mkdir -p /tmp/Builds
 cd /tmp/Builds
 wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.11.5.tar.bz2
 tar -xvjf Plexamp-Linux-headless-v4.11.5.tar.bz2
@@ -567,6 +704,7 @@ Login with your PlexPass credentials and you can now control PlexAmp music on yo
 ### Get Spotifyd
 
 ```
+mkdir -p /tmp/Builds
 cd /tmp/Builds
 wget https://github.com/Spotifyd/spotifyd/releases/download/v0.4.0/spotifyd-linux-aarch64-default.tar.gz
 tar xzf spotifyd-linux-aarch64-default.tar.gz
@@ -605,131 +743,4 @@ arguments=--no-daemon --backend pulseaudio
 ## Instructions for casting
 Once running goto Spotify on your mobile device and select the devices button.  In the menu of systems select the hostname of your Raspberry Pi to broadcast music.
 
-</details>
-
-## Configuration
-
-<details>
-<summary><b>Setup ProjectM Presets and Textures</b></summary></br>
-The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.  The projectM library does not ship with any presets or textures so you want to grab them and deploy them.  
-
-There are many options available to you for presets and textures.  In the following I have outlined 3 options:
-  <details>
-  <summary><b>GitHub Repo - RPI5-ProjectM-Presets-Textures</b> <i>My hand selected presets and textures for the latest libprojectM release for the Raspberry Pi 5</i></summary>
-
-  ### Download and move the presets and textures
-  ```
-  cd /tmp/Builds
-  git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git
-  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMSDL/ -R
-  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMSDL/ -R
-  ```
-
-  </details>
-
-  <details>
-  <summary><b>GitHub Repo - projectM-presets-rpi5</b> <i>Presets and textures repository managed by mickabrig7, and benchmarked for the Raspberry Pi 5</i></summary>
-
-  ### Download and move the presets and textures
-  *Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
-  ```
-  cd /tmp/Builds
-  git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
-  cp /tmp/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMSDL/ -R
-  cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMSDL/ -R
-  ```
-
-  Adjust /opt/ProjectMSDL/projectMSDL.properties to include the preset and texture directories
-  ```
-  projectM.presetPath = /opt/ProjectMSDL/presets
-  projectM.texturePath = /opt/ProjectMSDL/textures
-  ```
-
-  </details>
-
-
-  <details>
-  <summary><b>Manual Method</b> <i>Resources to obtain community presets and textures</i></summary>
-
-  ### General Presets and Textures:
-  Textures:
-  - [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
-    use with _any_ preset pack!
-
-  Presets:
-  - [Cream of the Crop Pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop) - A collection of about 10K
-    presets compiled by Jason Fletcher. Currently, projectM's default preset pack.
-  - [Classic projectM Presets](https://github.com/projectM-visualizer/presets-projectm-classic) - A bit over 4K presets
-    shipped with previous versions of projectM.
-  - [Milkdrop 2 Presets](https://github.com/projectM-visualizer/presets-milkdrop-original) - The original preset
-    collection shipped with Milkdrop and Winamp.
-  - [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
-
-  </br></details>
-
-</details>
-
-<details>
-<summary><b>ProjectMSDL Configuration</b></summary></br>
-Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configurations to the below:
-
-***Note:** I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.  Furthermore when exclusive mode is enabled but not fullscreen, you will get a cursor that can only be removed by hitting escape.  While this also sounds strange, only set the window size resolution.*
-
-```
-window.fullscreen = true
-
-window.fullscreen.exclusiveMode = true
-
-window.width = 1280
-window.height = 720
-
-projectM.presetPath = /opt/ProjectMSDL/presets
-projectM.texturePath = /opt/ProjectMSDL/textures
-
-## This setting is optional
-projectM.displayDuration = 60
-
-## This setting is optional (ProjectMAR has its own advanced shuffling that allows you to go back to previous)
-projectM.shuffleEnabled = false
-
-projectM.meshX = 64
-projectM.meshY = 32
-
-projectM.transitionDuration = 0
-
-## These settings are optional (When enabled a preset transition will occur on a "hard cut")
-projectM.hardCutsEnabled = true
-projectM.hardCutDuration = 30
-```
-
-</details>
-
-<details>
-<summary><b>ProjectMAR Configuration</b></summary></br>
-  By default, ProjectMAR is set to automatic (/opt/ProjectMAR/conf/projectMAR.conf).  This means that it will handle the audio devices automatically so you do not need to have advanced knowledge of your devices.
-
-  If you prefer to define your devices and their feature sets, switch the audio_mode to manual and proceed with device configuration in the following configuration files:
-  - audio_cards.conf
-  - audio_sources.conf
-  - audio_sinks.conf
-  - audio_plugins.conf
-</details>
-
-<details>
-<summary><b>PulseAudio Configuration</b></summary></br>
-To enable higher sample rates in Pulseaudio (Specifically for various DACs) ensure you add the following to Pulseaudio daemon config (/etc/pulse/daemon.conf)
-```
-resample-method = soxr-vhq
-avoid-resampling = true
-default-sample-format = s24le
-default-sample-rate = 44100
-alternate-sample-rate = 48000
-```
-
-Either restart or you can run 
-```
-systemctl --user restart pulseaudio.socket
-systemctl --user restart pulseaudio.service
-
-```
 </details>
