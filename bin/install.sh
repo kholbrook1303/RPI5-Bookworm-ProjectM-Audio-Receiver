@@ -58,7 +58,16 @@ else
   exit 1
 fi
 
-echo "Found $_VIDEO_OUTPUT video output!"
+cpuInfo=$(cat /proc/cpuinfo)
+_RPI_MODEL=""
+if [[ "$cpuInfo" =~ "Raspberry Pi 4" ]]; then
+  _RPI_MODEL="4"
+elif [[ "$cpuInfo" =~ "Raspberry Pi 5" ]]; then
+  _RPI_MODEL="5"
+else
+  echo "Unable to detect Raspberry Pi or model is not supported!"
+  exit 1
+fi
 
 ldconfigOutput=$(ldconfig -v)
 
@@ -130,12 +139,24 @@ if ! [ -f "$_PROJECTM_SDL_PATH/projectMSDL.properties" ];then
   sed -i 's/.*window.fullscreen.exclusiveMode =.*/window.fullscreen.exclusiveMode = true/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
   
   if [ $_VIDEO_OUTPUT = "composite" ]; then
-    sed -i 's/.*window.width =.*/window.width = 320/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
-    sed -i 's/.*window.height =.*/window.height = 240/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
-    sed -i 's/.*projectM.fps =.*/projectM.fps = 30/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    sed -i 's/.*window.width =.*/window.width = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    sed -i 's/.*window.height =.*/window.height = 480/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+
+    if [ $_RPI_MODEL = "4" ]; then
+      sed -i 's/.*projectM.fps =.*/projectM.fps = 30/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    elif [ $_RPI_MODEL = "5" ]; then
+      sed -i 's/.*projectM.fps =.*/projectM.fps = 60/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    fi
   elif [ $_VIDEO_OUTPUT = "hdmi" ]; then
-    sed -i 's/.*window.width =.*/window.width = 1280/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
-    sed -i 's/.*window.height =.*/window.height = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    if [ $_RPI_MODEL = "4" ]; then
+      sed -i 's/.*window.width =.*/window.width = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+      sed -i 's/.*window.height =.*/window.height = 480/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+      sed -i 's/.*projectM.fps =.*/projectM.fps = 30/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    elif [ $_RPI_MODEL = "5" ]; then
+      sed -i 's/.*window.width =.*/window.width = 1280/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+      sed -i 's/.*window.height =.*/window.height = 720/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+      sed -i 's/.*projectM.fps =.*/projectM.fps = 60/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
+    fi
   fi
 
   sed -i 's/.*projectM.presetPath =.*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/' "$_PROJECTM_SDL_PATH/projectMSDL.properties"
