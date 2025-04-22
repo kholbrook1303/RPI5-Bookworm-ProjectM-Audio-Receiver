@@ -907,7 +907,7 @@ class XDisplay(Controller):
             'resolutions': dict()
             }
         
-        display_device_regex = r'^(?P<device>HDMI.*?)\sconnected'
+        display_device_regex = r'^(?P<device>.*?)\sconnected'
         display_configs_regex = r'^(?P<resolution>\d+x\d+)\s+(?P<refreshRates>.*?)$'
         
         log.debug('Running xrandr...')
@@ -963,7 +963,7 @@ class WaylandDisplay(Controller):
             'resolutions': list()
             }
         
-        display_device_regex = r'^(?P<device>HDMI.*?)\s\"(?P<description>.*?)\"'
+        display_device_regex = r'^(?P<device>.*?)\s\"(?P<description>.*?)\"'
         display_configs_regex = r'^(?P<resolution>' + self.resolution + ')\spx,\s(?P<refreshRate>\d+\.\d+)'
         current_resolution_regex = r'^(?P<resolution>\d+x\d+)\spx,\s(?P<refreshRate>\d+\.\d+).*?current'
         
