@@ -5,30 +5,19 @@
 ### In this latest update:
 ***Note:** If you are not up-to-date, you may find that there are drastic differeneces in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
 
+- ProjectMAR Installer has been completely rewritten to include various installation modes, set optimal configurations, install and configure plugins, and uninstall.  If an existing configuration exists for projectMAR (Due to performing an update), the existing configurations will remain.  Future updates will hopefully be handled by the installer as new configurations are added.
+
+- ProjectMSDL refresh feature.  Anytime the resolution is changed while running, projectMSDL will be reset to accomodate the new display.  This was an issue I observed where projectMSDL would crash when switching through various inputs on an AV receiver.
+
+- Minor fixes and improvements
+
+### Recently there have been many improvements:
+
 - Added support for Raspberry Pi 4.  RPI4 has to run at reduced resolutions as well as reduced FPS due to the graphics limitations.  Installer script has been updated to accomodate this.
 
 - Added support for composite video per a user request to support composite for old CRT setups for more of a retro feel.
 
 - Resolved an issue with the installer not handling a apt prompt.
-
-### Recently there have been many improvements:
-
-- All new installer to alleviate the hastle of installing projectMAR and dependencies.  When running the script against an existing installation, for now it will backup the existing projectMAR configurations by appending a .bak to the config file.  My plan is to have an upgrade method that migrates the existing configuration with any new changes that may happen in the future starting with this build as a baseline.
-
-- All new configurations which are now located in /opt/ProjectMAR/conf/.  The primary projectMAR.conf has been drastically reduced by moving the sources|sinks|cards|plugins to seperate configurations that are only necessary for manual audio configuration.  The primary purpose for this is to simplify the experience for users that prefer to run the audio control in automatic mode.  Additional example annotations have been added for manual audio configurations.
-
-- Card profile management has been enhanced and also now works in automatic mode by providing some additional configurations:
-  ```
-  [automatic]
-  # card_profile_types defines the type of card profile in the order listed (input|input-output|output)
-  # card_profile_modes defines the type of formats accepted
-  card_profile_types=input-output,input,output
-  card_profile_modes=analog-stereo,mono-fallback,stereo-fallback,hdmi-stereo
-  ```
-
-- Added support for multiple preset paths in projectMSDL.properties
-
-- Added improvements for handling combined sinks so devices that are removed/unplugged
 
 ## What is this?
 The ProjectM Audio Receiver will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
@@ -76,8 +65,31 @@ This step assumes you have already imaged your SD card.  If you need help gettin
 Make sure the OS is up-to-date before proceeding!
 ```
 sudo apt update
-sudo apt upgrade
+sudo apt upgrade -y
 ```
+
+### Setting your display resolution
+Ensure that the resolution is set according to your device/connection.  
+- HDMI it is best to run at 1280x720 for optimal performance.  If you are running a Raspberry Pi 4 you should run at 720x578 as the GPU cannot handle higher resolutions.
+- Composite video for older displays will need to be set to 720x480 (4:3).  
+- HDMI to composite converter for older displays will need to be set at either 720x480 (4:3) or 720x576 (16:9) depending on the displays viewing ratio.
+
+### Dealing with composite video overscan
+If you notice that the composite connection is wider that your screen, you can set the kernel parameters to adjust the margins of the screen to fit your display.  To do this edit the /boot/firmware/cmdline.txt and add the following to the end of the first line:
+```
+sudo nano /boot/firmware/cmdline.txt
+```
+
+#### Composite:
+```
+video=Composite-1:720x576@60,margin_left=10,margin_right=18,margin_top=10,margin_bottom=20
+```
+
+#### HDMI with composite video conversion adapter:
+```
+video=HDMI-A-1:720x576@60,margin_left=10,margin_right=18,margin_top=10,margin_bottom=20
+```
+***Note:** This is just an example.  Ensure you are specifying the resolution you have chosen for your setup.*
 
 ## Installation
 
@@ -85,20 +97,59 @@ sudo apt upgrade
 <summary><b>Automated Installation</b></summary>
 
 ### Install projectM, frontend SDL, and projectMAR using the new setup script
-<i><b>Note:</b> This is the initial release of this installation script.  Please be aware of the following:
-- A startup entry will be created for both Raspberry Pi OS Desktop or Lite if they do not already exist
-- All existing projectMAR configurations in /opt/ProjectMAR/ will have a '.bak' appended to it 
-- ProjectMSDL will be setup in /opt/ProjectMSDL/ to avoid clutter and seperate the 2 applications
-- If all is successful the tool will cleanup the temporary builds folder and reboot the system
-- Supported audio plugins (Optional Features) will need to be installed seperately
-</i>
 
-Run the following command to run the installer
+ProjectMAR installer is comprised of 2 optional installation modes:
+- minimal: This will install everything but configure nothing.  This is a more advanced approach.
+- optimal: This will set all of the projectMSDL configurations accordingly as well as set you resolution for ProjectMAR.  This is for users that just want it to function out-of-box.
+
+ProjectMAR installer also supports the following optional plugins:
+- a2dp: Bluetooth audio
+- shairport-sync: Airplay casting support
+- plexamp: PlexAmp casting support and web UI for library control (Requires Plex Pass)
+- spotifyd: Spotify Connect (Requires premium subscription)
+
+See below for usage instructions and examples.
+
+#### Installer Usage:
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash
+Usage: install.sh [-m <value>] [-p <value>]
+- a     Instructs the installer to setup an autostart entry for projectMAR (Default: false)
+- m     Specifies the mode to install.
+        The following modes are supported:
+        - minimal           Base installtion for ProjectMAR)
+        - optimized         Installtion with optimized configuration for ProjectMAR)
+- p     Specifies the plugins you want installed (comma seperated list)
+        The following plugins are supported:
+        - a2dp              Bluetooth audio
+        - shairport-sync    Airplay
+        - spotifyd          Spotify Connect (Premium Subscription Required)
+        - plexamp           Plexamp (Plex Pass Subscription Required)
 ```
 
-<i><b>Note:</b> Once the script has completed the system will be rebooted and you should have the visualizer up and running.  To exit and proceed with additional plugins hit ctrl+q to quit projectM</i>
+#### Minimal Installation
+```
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m minimal
+```
+
+#### Optimized Installation with Startup
+```
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m optimized -a
+```
+
+#### Optimized Installation with Startup and plugins
+```
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m optimized -a -p a2dp,shairport-sync,spotifyd,plexamp
+```
+
+#### Uninstall
+```
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m uninstall
+```
+
+<i><b>Note:</b> Once the script has completed the system will be rebooted.  
+If you enabled autostart on the installer the system should come up ready to go, otherwise
+- Desktop OS: Run the projectMAR.sh shortcut on the desktop or run '/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py' to execute projectMAR.  
+- Lite OS: Run '/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py' to execute projectMAR</i>
 </details>
 
 <details>
