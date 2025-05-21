@@ -107,6 +107,15 @@ class Controller:
                         process = self._execute(attr['meta']['args'])
                         attr['process'] = process
 
+                elif attr['meta'].get('reset', None):
+                    if attr['meta']['reset'].is_set():
+                        log.warning('Resetting {} due to resolution change'.format(attr['name']))
+                        attr['process'].kill()
+
+                        process = self._execute(attr['meta']['args'])
+                        attr['process'] = process
+                        attr['meta']['reset'].clear()
+
             time.sleep(1)
 
     """Perform any controller exit operations

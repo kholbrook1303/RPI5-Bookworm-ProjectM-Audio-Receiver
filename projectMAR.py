@@ -24,9 +24,10 @@ class SignalMonitor:
         self.exit = True
 
 def main(config):
-    sm = SignalMonitor()
-    thread_event = Event()
-    
+    sm              = SignalMonitor()
+    thread_event    = Event()
+    refresh_event   = Event()
+
     log.info('Initializing projectMAR System Control in {0} mode...'.format(
         config.audio_receiver.get('audio_mode', 'automatic')
         ))
@@ -41,12 +42,12 @@ def main(config):
     if config.general.get('audio_plugin', False):
         controllers.append(plugin_ctrl)
 
-    display_ctrl = DisplayCtrl(thread_event, config)
+    display_ctrl = DisplayCtrl(thread_event, refresh_event, config)
     if config.general.get('display_enforcement', True):
         controllers.append(display_ctrl)
     
     if config.general.get('projectm', True):
-        projectM_ctrl = ProjectMCtrl(thread_event, config, audio_ctrl, display_ctrl)
+        projectM_ctrl = ProjectMCtrl(thread_event, refresh_event, config, audio_ctrl, display_ctrl)
         controllers.append(projectM_ctrl)
 
     for controller in controllers:

@@ -778,8 +778,8 @@ class PluginCtrl(Controller, threading.Thread):
         threading.Thread.__init__(self)
         super().__init__(thread_event)
 
-        self.config = config
-        self.thread_event = thread_event
+        self.config         = config
+        self.thread_event   = thread_event
         
         self.audio_plugins_config = Config(os.path.join(APP_ROOT, 'conf', 'audio_plugins.conf'))
                     
@@ -788,7 +788,7 @@ class PluginCtrl(Controller, threading.Thread):
             log.info('{} Plugin Output: {}'.format(plugin_name, line))
                     
     def monitor_error(self, plugin_name, plugin_process):
-        for line in self._read_stderr(plugin_process):
+        for line in self._read_stderr(plugin_name):
             log.info('{} Plugin Error: {}'.format(plugin_name, line))
 
     def run(self):
@@ -854,13 +854,14 @@ class PluginCtrl(Controller, threading.Thread):
         self._close()
 
 class DisplayCtrl(Controller, threading.Thread):
-    def __init__(self, thread_event, config):
+    def __init__(self, thread_event, refresh_event, config):
         threading.Thread.__init__(self)
         super().__init__(thread_event)
 
-        self.config = config
-        self.display_type = os.environ.get('XDG_SESSION_TYPE', None)
-        self.thread_event = thread_event
+        self.config         = config
+        self.display_type   = os.environ.get('XDG_SESSION_TYPE', None)
+        self.thread_event   = thread_event
+        self.refresh_event  = refresh_event
 
         self.ctrl = None
         if self._environment == 'desktop':
@@ -876,7 +877,7 @@ class DisplayCtrl(Controller, threading.Thread):
             else:
                 raise Exception('Display type {} is not currently supported!'.format(self.display_type))
             
-            self.ctrl = display_method(self.thread_event, self.config.general.get('resolution', '1280x720'))
+            self.ctrl = display_method(self.thread_event, self.refresh_event, self.config.general.get('resolution', '1280x720'))
 
     def get_diagnostics(self):
         return self.ctrl.get_display_config()
@@ -895,9 +896,10 @@ class DisplayCtrl(Controller, threading.Thread):
         pass
 
 class XDisplay(Controller):
-    def __init__(self, thread_event, resolution):
+    def __init__(self, thread_event, refresh_event, resolution):
         super().__init__(thread_event)
-        self.resolution = resolution
+        self.resolution     = resolution
+        self.refresh_event  = refresh_event
         
     def get_display_config(self):
         display_config = {
@@ -944,6 +946,7 @@ class XDisplay(Controller):
         else:
             res_profile = display_config['resolutions'].get(self.resolution)
             log.info('Setting resolution to {} refresh rate to {}'.format(self.resolution, max(res_profile)))
+            self.refresh_event.set()
 
             xrandr = self._execute_managed([
                 'xrandr', '--output', display_config['device'], 
@@ -951,9 +954,10 @@ class XDisplay(Controller):
                 ])
 
 class WaylandDisplay(Controller):
-    def __init__(self, thread_event, resolution):
+    def __init__(self, thread_event, refresh_event, resolution):
         super().__init__(thread_event)
-        self.resolution = resolution
+        self.resolution     = resolution
+        self.refresh_event  = refresh_event
         
     def get_display_config(self):
         display_config = {
@@ -995,20 +999,23 @@ class WaylandDisplay(Controller):
             log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
         else:
             log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
+            self.refresh_event.set()
+
             randr = self._execute_managed([
                 'wlr-randr', '--output', display_config['device'], 
                 '--mode', max(display_config['resolutions'])
                 ])
 
 class ProjectMCtrl(Controller, threading.Thread):
-    def __init__(self, thread_event, config, audio_ctrl, display_ctrl):
+    def __init__(self, thread_event, refresh_event, config, audio_ctrl, display_ctrl):
         threading.Thread.__init__(self)
         super().__init__(thread_event)
         
-        self.config = config
-        self.audio_ctrl = audio_ctrl
-        self.display_ctrl = display_ctrl
-        self.thread_event = thread_event
+        self.config         = config
+        self.audio_ctrl     = audio_ctrl
+        self.display_ctrl   = display_ctrl
+        self.thread_event   = thread_event
+        self.refresh_event  = refresh_event
         
         self.projectm_path = self.config.projectm.get('projectm_path', '/opt/ProjectMSDL')
         self.projectm_restore = self.config.projectm.get('projectm_restore', False)      
@@ -1141,11 +1148,12 @@ class ProjectMCtrl(Controller, threading.Thread):
         self.manage_playlist()
     
         app_path = os.path.join(self.projectm_path, 'projectMSDL')
-        
+
         projectm_meta = {
             'path': app_path,
             'args': [app_path, '--beatSensitivity=' + str(beatSensitivity)],
-            'restore': self.projectm_restore
+            'restore': self.projectm_restore,
+            'reset': self.refresh_event
         }
 
         projectm_process = self._execute(projectm_meta['args'])
