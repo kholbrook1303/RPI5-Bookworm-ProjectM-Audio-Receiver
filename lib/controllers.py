@@ -1072,23 +1072,26 @@ class ProjectMCtrl(Controller, threading.Thread):
                     
     def monitor_output(self, projectm_process):
         preset_regex = r'Displaying preset: (?P<name>.*)$'
-        for line in self._read_stderr(projectm_process):
-            log.debug('ProjectM Output: {0}'.format(line))
+        while not self._thread_event.is_set():
+            for line in self._read_stderr(self._processes['ProjectMDSL']['process']):
+                log.debug('ProjectM Output: {0}'.format(line))
             
-            try:
-                match = re.search(preset_regex, line, re.I)
-                if match:
-                    preset = match.group('name').rsplit('/', 1)[1]
+                try:
+                    match = re.search(preset_regex, line, re.I)
+                    if match:
+                        preset = match.group('name').rsplit('/', 1)[1]
                 
-                    log.info('Currently displaying preset: {0}'.format(preset))
-                    self.preset_start = time.time()
+                        log.info('Currently displaying preset: {0}'.format(preset))
+                        self.preset_start = time.time()
                 
-                    # Take a preview screenshot
-                    if self.display_ctrl._environment == 'desktop':
-                        if self.preset_screenshots and self.audio_ctrl.source_device:
-                            self.take_screenshot(preset)
-            except:
-                log.exception('Failed to process output: {}'.format(line))
+                        # Take a preview screenshot
+                        if self.display_ctrl._environment == 'desktop':
+                            if self.preset_screenshots and self.audio_ctrl.source_device:
+                                self.take_screenshot(preset)
+                except:
+                    log.exception('Failed to process output: {}'.format(line))
+
+            time.sleep(1)
             
     def monitor_hang(self):
         while not self.thread_event.is_set():
