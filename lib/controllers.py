@@ -845,6 +845,9 @@ class PluginCtrl(Controller, threading.Thread):
                 error_thread.start()
                 self._threads[plugin_name + '_Error'] = error_thread
 
+            except AttributeError as ae:
+                log.warning('Unable to load plugin {}: {}'.format(plugin, ae))
+
             except Exception as e:
                 log.exception('Failed to load plugin {} with error {}'.format(plugin, e))
 
