@@ -3,11 +3,11 @@
 ## ProjectMAR News:
 
 ### In this latest update:
-***Note:** If you are not up-to-date, you may find that there are drastic differeneces in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
+***Note:** If you are not up-to-date, you may find that there are drastic differences in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
 
 - ProjectMAR Installer has been completely rewritten to include various installation modes, set optimal configurations, install and configure plugins, and uninstall.  If an existing configuration exists for projectMAR (Due to performing an update), the existing configurations will remain.  Future updates will hopefully be handled by the installer as new configurations are added.
 
-- ProjectMSDL refresh feature.  Anytime the resolution is changed while running, projectMSDL will be reset to accomodate the new display.  This was an issue I observed where projectMSDL would crash when switching through various inputs on an AV receiver.
+- ProjectMSDL refresh feature.  Anytime the resolution is changed while running, projectMSDL will be reset to accommodate the new display.  This was an issue I observed where projectMSDL would crash when switching through various inputs on an AV receiver.
 
 - Minor fixes and improvements
 
@@ -673,18 +673,23 @@ sudo systemctl start nqptp
 ```
 
 ## Startup Instructions
-Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+Open projectMAR.conf and navigate to the 'general' section.  Ensure that plugin_ctrl is set to 'True'.
 ```
 plugin_ctrl=True
-plugins=plugin1
 ```
 
-Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters replacing the 'USER' with your username
+Open /conf/audio_plugins.conf add an additional plugins with a unique name to audio_plugins
+```
+audio_plugins=plugin1
+```
+
+Beneath the 'general' section in /conf/audio_plugins.conf, add a new section using the unique plugin name you created, then add the necessary parameters
 ```
 [plugin1]
 name=Shairport-Sync
 path=/usr/local/bin/shairport-sync
 arguments=
+restore=true
 ```
 
 </details>
@@ -722,13 +727,17 @@ Paste the claim code in the terminal window and proceed with naming your player
 
 ## Startup Instructions
 
-Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+Open projectMAR.conf and navigate to the 'general' section.  Ensure that plugin_ctrl is set to 'True'.
 ```
 plugin_ctrl=True
-plugins=plugin1,plugin2
 ```
 
-Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters
+Open /conf/audio_plugins.conf add an additional plugins with a unique name to audio_plugins
+```
+audio_plugins=plugin2
+```
+
+Beneath the 'general' section in /conf/audio_plugins.conf, add a new section using the unique plugin name you created, then add the necessary parameters
 ```
 [plugin2]
 name=PlexAmp
@@ -777,13 +786,17 @@ https://docs.spotifyd.rs/configuration/index.html
 
 ## Startup Instructions
 
-Open projectMAR.conf and navigate to the 'audio_receiver' section.  Ensure that plugin_ctrl is set to 'True' and add an additional plugin with a unique name to plugins
+Open projectMAR.conf and navigate to the 'general' section.  Ensure that plugin_ctrl is set to 'True'.
 ```
 plugin_ctrl=True
-plugins=plugin1,plugin2,plugin3
 ```
 
-Beneath the 'audio_receiver' section, add a new section using the unique plugin name you created, then add the necessary parameters
+Open /conf/audio_plugins.conf add an additional plugins with a unique name to audio_plugins
+```
+audio_plugins=plugin3
+```
+
+Beneath the 'general' section in /conf/audio_plugins.conf, add a new section using the unique plugin name you created, then add the necessary parameters
 ```
 [plugin3]
 name=Spotify

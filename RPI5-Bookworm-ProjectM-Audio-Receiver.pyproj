@@ -12,6 +12,7 @@
     <Name>RPI5-Bookworm-ProjectM-Audio-Receiver</Name>
     <RootNamespace>RPI5-Bookworm-ProjectM-Audio-Receiver</RootNamespace>
     <IsWindowsApplication>False</IsWindowsApplication>
+    <InterpreterId>MSBuild|env|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,9 +23,13 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="controllers\audio.py" />
+    <Compile Include="controllers\display.py" />
+    <Compile Include="controllers\plugins.py" />
+    <Compile Include="controllers\projectm.py" />
     <Compile Include="lib\abstracts.py" />
     <Compile Include="lib\config.py" />
-    <Compile Include="lib\controllers.py" />
+    <Compile Include="lib\constants.py" />
     <Compile Include="lib\log.py" />
     <Compile Include="presetManagement.py" />
     <Compile Include="projectMAR.py" />
@@ -44,6 +49,7 @@
     <Folder Include="lib\" />
     <Folder Include="conf\" />
     <Folder Include="bin\" />
+    <Folder Include="controllers\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

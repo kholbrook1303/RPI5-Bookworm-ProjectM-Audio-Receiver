@@ -678,6 +678,9 @@ if [ -n "$INSTALLATION_MODE" ]; then
         install_libpoco
         install_frontend_sdl
 
+        # Setup uinput
+        install_uinput
+
         # Setup projectM Audio Receiver
         install_projectmar
 

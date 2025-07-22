@@ -6,15 +6,20 @@ import signal
 import sys
 import time
 
-from threading import Thread, Event
+from threading import Event
 
 from lib.config import Config, APP_ROOT
 from lib.log import log_init
-from lib.controllers import AudioCtrl, DisplayCtrl, ProjectMCtrl, PluginCtrl
+
+from controllers.audio import AudioCtrl
+from controllers.display import DisplayCtrl
+from controllers.plugins import PluginCtrl
+from controllers.projectm import ProjectMCtrl
 
 log = logging.getLogger()
     
 class SignalMonitor:
+    """Monitor for system signals to gracefully exit the application"""
     exit = False
     def __init__(self):
         signal.signal(signal.SIGINT, self.set_exit)
@@ -23,30 +28,33 @@ class SignalMonitor:
     def set_exit(self, signum, frame):
         self.exit = True
 
+"""Main function to initialize and run the projectMAR system control.
+@param config: the application configuration object
+"""
 def main(config):
     sm              = SignalMonitor()
     thread_event    = Event()
     refresh_event   = Event()
 
     log.info('Initializing projectMAR System Control in {0} mode...'.format(
-        config.audio_receiver.get('audio_mode', 'automatic')
+        config.audio_ctrl.get('audio_mode', 'automatic')
         ))
 
     controllers = list()
 
     audio_ctrl = AudioCtrl(thread_event, config)
-    if config.general.get('audio_receiver', True):
+    if config.general.get('audio_ctrl', True):
         controllers.append(audio_ctrl)
 
     plugin_ctrl = PluginCtrl(thread_event, config)
-    if config.general.get('audio_plugin', False):
+    if config.general.get('plugin_ctrl', False):
         controllers.append(plugin_ctrl)
 
     display_ctrl = DisplayCtrl(thread_event, refresh_event, config)
-    if config.general.get('display_enforcement', True):
+    if config.general.get('display_ctrl', True):
         controllers.append(display_ctrl)
     
-    if config.general.get('projectm', True):
+    if config.general.get('projectm_ctrl', True):
         projectM_ctrl = ProjectMCtrl(thread_event, refresh_event, config, audio_ctrl, display_ctrl)
         controllers.append(projectM_ctrl)
 
@@ -76,6 +84,7 @@ def main(config):
     log.info('Exiting ProjectMAR!')
     sys.exit(0)
 
+"""Parse command line arguments for the projectMAR system control"""
 def parse_args():
     parser = argparse.ArgumentParser()
 
