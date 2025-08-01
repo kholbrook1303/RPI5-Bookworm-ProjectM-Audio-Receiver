@@ -18,7 +18,10 @@ class DisplayCtrl(Controller, threading.Thread):
         self.display_type   = os.environ.get('XDG_SESSION_TYPE', None)
         self.thread_event   = thread_event
         self.refresh_event  = refresh_event
-        self.resolution     = self.config.display_ctrl.get('resolution', '1280x720')
+        self.resolution     = '{}x{}'.format(
+            self.config.display_ctrl.get('resolution_width', 1280),
+            self.config.display_ctrl.get('resolution_height', 720)
+            )
 
     """Get the supported and current display configuration for X11"""
     def _get_x_display_config(self):

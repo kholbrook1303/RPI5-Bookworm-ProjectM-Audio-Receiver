@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 
 from configparser import ConfigParser, RawConfigParser
 
@@ -55,6 +56,7 @@ class Config:
 
         except Exception as e:
             print ("Error loading configuration file", e)
+            traceback.print_exc()
             sys.exit(-1)
         
     """Check if string is a boolean.

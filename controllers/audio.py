@@ -819,8 +819,9 @@ class AudioCtrl(Controller, threading.Thread):
 
     """Close the PulseAudio connection and unload modules"""
     def close(self):
-        self.audio_listener_thread.join()
-        self.audio_listener_thread.close()
+        if self.audio_listener_thread:
+            self.audio_listener_thread.join()
+            self.audio_listener_thread.close()
 
         for source_name, source_device in self.devices.source_devices.items():
             if not source_device.active:
