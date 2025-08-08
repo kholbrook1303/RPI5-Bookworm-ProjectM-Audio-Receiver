@@ -108,7 +108,7 @@ class Controller:
 
                     elif attr.restore and attr.process.returncode != 0:
                         log.info('Starting {}...'.format(attr.args))
-                        process = self._execute(attr.args)
+                        process = self._execute(attr.name, attr.path, attr.args)
                         attr.process = process
 
                 elif attr.trigger:
@@ -116,7 +116,7 @@ class Controller:
                         log.warning('Resetting {} due to resolution change'.format(attr.name))
                         attr.process.kill()
 
-                        process = self._execute(attr.args)
+                        process = self._execute(attr.name, attr.path, attr.args)
                         attr.process = process
                         attr.trigger.clear()
 
