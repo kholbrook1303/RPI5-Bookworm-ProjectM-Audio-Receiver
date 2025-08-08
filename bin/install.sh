@@ -244,7 +244,7 @@ configure_projectmsdl() {
     sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.displayDuration .*/projectM.displayDuration = 60/"
     sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.shuffleEnabled .*/projectM.shuffleEnabled = true/"
     sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.transitionDuration .*/projectM.transitionDuration = 0/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutSensitivity .*/projectM.beatSensitivity = 2.0/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.beatSensitivity .*/projectM.beatSensitivity = 2.0/"
     sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutsEnabled .*/projectM.hardCutsEnabled = true/"
     sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutDuration .*/projectM.hardCutDuration = 30/"
     sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutSensitivity .*/projectM.hardCutSensitivity = 2.0/"
