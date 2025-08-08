@@ -51,7 +51,7 @@ class RenderingLoop:
         self.projectm_wrapper = ProjectMWrapper(self.config, self.sdl_rendering)
 
         # Create and start audio capture
-        self.audio_capture = AudioCapture(self.projectm_wrapper)
+        self.audio_capture = AudioCapture(self.config, self.projectm_wrapper)
         self.audio_mgmt = AudioManager(self.config)
 
         self._renderWidth = None

@@ -6,7 +6,7 @@ import numpy as np
 log = logging.getLogger()
 
 class SDLAudioCapture:
-    def __init__(self, projectm_wrapper, sample_rate=48000, channels=2, samples=1024):
+    def __init__(self, config, projectm_wrapper, sample_rate=44100, channels=2, samples=1024):
         self.projectm_wrapper = projectm_wrapper
 
         self._currentAudioDeviceIndex = -1
@@ -14,7 +14,7 @@ class SDLAudioCapture:
         self._channels = channels
         
         self._requestedSampleFrequency = sample_rate
-        self._requestedSampleCount = samples
+        self._requestedSampleCount = sample_rate / config.projectm.get('projectm.fps', 60)
 
         sdl2.SDL_SetHint(sdl2.SDL_HINT_AUDIO_INCLUDE_MONITORS, b"1")
         sdl2.SDL_InitSubSystem(sdl2.SDL_INIT_AUDIO)
@@ -97,8 +97,8 @@ class SDLAudioCapture:
         return True
 
     def uninitialize(self):
-        sdl2.SDL_CloseAudioDevice(self._currentAudioDeviceID)
-        sdl2.SDL_Quit()
+        self.stop_recording()
+        sdl2.SDL_QuitSubSystem(sdl2.SDL_INIT_AUDIO)
 
 @ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_int)
 def audio_callback(userdata, stream, length_bytes):
@@ -106,6 +106,6 @@ def audio_callback(userdata, stream, length_bytes):
 
     length  = length_bytes // ctypes.sizeof(ctypes.c_float)
     float_ptr = ctypes.cast(stream, ctypes.POINTER(ctypes.c_float))
-    samples = np.ctypeslib.as_array(float_ptr, shape=(length,))
+    samples = np.ctypeslib.as_array(float_ptr, shape=(length,)).copy()
 
     instance.projectm_wrapper.add_pcm(samples, channels=2)

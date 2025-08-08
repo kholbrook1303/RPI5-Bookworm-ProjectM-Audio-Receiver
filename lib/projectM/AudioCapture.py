@@ -5,10 +5,11 @@ log = logging.getLogger()
 from lib.projectM.AudioCaptureImpl_SDL import SDLAudioCapture
 
 class AudioCapture:
-    def __init__(self, projectm_wrapper):
+    def __init__(self, config, projectm_wrapper):
+        self.config = config
         self.projectm_wrapper = projectm_wrapper
 
-        self.audio_capture_impl = SDLAudioCapture(projectm_wrapper)
+        self.audio_capture_impl = SDLAudioCapture(self.config , projectm_wrapper)
         deviceList = self.audio_capture_impl.audio_device_list()
         audioDeviceIndex = self.get_initial_audio_device_index(deviceList)
 
