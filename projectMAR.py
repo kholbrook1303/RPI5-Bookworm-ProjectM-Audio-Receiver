@@ -6,7 +6,6 @@ import sys
 
 from threading import Event
 
-from lib.audio import AudioManager
 from lib.config import Config, APP_ROOT
 from lib.common import get_environment
 from lib.log import log_init
@@ -91,7 +90,7 @@ if __name__ == "__main__":
         if not os.path.exists(diag_path):
             os.makedirs(diag_path)
 
-        audio = AudioManager(config)
+        audio = AudioCtrl(None, config)
         audio_data = dict()
         for cat, data in audio.get_raw_diagnostics():
             if not audio_data.get(cat):
