@@ -10,17 +10,14 @@ log = logging.getLogger()
 
 class DisplayCtrl(Controller, threading.Thread):
     """Controller for managing X11 and Wayland display devices"""
-    def __init__(self, thread_event, refresh_event, config):
+    def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
-        super().__init__(thread_event)
+        super().__init__(thread_event, config)
 
-        self.config         = config
         self.display_type   = os.environ.get('XDG_SESSION_TYPE', None)
-        self.thread_event   = thread_event
-        self.refresh_event  = refresh_event
         self.resolution     = '{}x{}'.format(
-            self.config.display_ctrl.get('resolution_width', 1280),
-            self.config.display_ctrl.get('resolution_height', 720)
+            self._config.display_ctrl.get('resolution_width', 1280),
+            self._config.display_ctrl.get('resolution_height', 720)
             )
 
     """Get the supported and current display configuration for X11"""
@@ -67,7 +64,6 @@ class DisplayCtrl(Controller, threading.Thread):
         else:
             res_profile = display_config['resolutions'].get(self.resolution)
             log.info('Setting resolution to {} refresh rate to {}'.format(self.resolution, max(res_profile)))
-            self.refresh_event.set()
 
             success = self._execute_managed([
                 'xrandr', '--output', display_config['device'], 
@@ -121,7 +117,6 @@ class DisplayCtrl(Controller, threading.Thread):
             log.debug('Resolution is already set to {}'.format(max(display_config['resolutions'])))
         else:
             log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
-            self.refresh_event.set()
 
             success = self._execute_managed([
                 'wlr-randr', '--output', display_config['device'], 
@@ -157,7 +152,7 @@ class DisplayCtrl(Controller, threading.Thread):
 
     """Run the display controller thread"""
     def run(self):
-        while not self.thread_event.is_set():
+        while not self._thread_event.is_set():
             if self._environment == 'desktop':
                 try:
                     self.enforce_resolution()

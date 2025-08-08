@@ -44,7 +44,7 @@
     <Content Include="conf\audio_sinks.conf" />
     <Content Include="conf\audio_sources.conf" />
     <Content Include="bin\install.sh" />
-    <Content Include="lib\audio.py" />
+    <Content Include="controllers\audio.py" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />

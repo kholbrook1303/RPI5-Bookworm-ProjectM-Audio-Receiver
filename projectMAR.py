@@ -13,6 +13,7 @@ from lib.log import log_init
 
 from lib.projectM.RenderingLoop import RenderingLoop
 
+from controllers.audio import AudioCtrl
 from controllers.display import DisplayCtrl
 from controllers.plugins import PluginCtrl
 
@@ -22,32 +23,33 @@ class ProjectMAR:
     def __init__(self, config):
         self.config         = config
         self.thread_event   = Event()
-        self.refresh_event  = Event()
         self.ctrl_threads   = list()
-        
-        log.info('Initializing projectMAR System Control in {0} mode...'.format(
-            config.audio_ctrl.get('audio_mode', 'automatic')
-            ))
-
-        plugin_ctrl = PluginCtrl(self.thread_event, self.config)
-        if config.general.get('plugin_ctrl', False):
-            self.ctrl_threads.append(plugin_ctrl)
-
-        display_ctrl = DisplayCtrl(self.thread_event, self.refresh_event, self.config)
-        if config.general.get('display_ctrl', True):
-            self.ctrl_threads.append(display_ctrl)
 
     def run(self):
-
         try:
+            log.info('Starting projectM rendering loop...')
             rendering_loop = RenderingLoop(self.config, self.thread_event)
+            
+            log.info('Initializing projectMAR System Control in {0} mode...'.format(
+                self.config.audio_ctrl.get('audio_mode', 'automatic')
+                ))
 
-            for controller in self.ctrl_threads:
-                controller.start()
+            controllers = {
+                'audio_ctrl': AudioCtrl,
+                'plugin_ctrl': PluginCtrl,
+                'display_ctrl': DisplayCtrl
+                }
+
+            for name, controller in controllers.items():
+                if self.config.general.get(name, False):
+                    handler = controller(self.thread_event, self.config)
+                    handler.start()
+                    self.ctrl_threads.append(handler)
 
             rendering_loop.run()
         except:
             log.exception('Failed to run rendering loop')
+            self.thread_event.set()
 
     def close(self):
         log.info('Closing down all threads/processes...')

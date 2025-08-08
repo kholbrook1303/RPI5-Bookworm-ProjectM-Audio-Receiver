@@ -34,8 +34,10 @@ class AudioCapture:
 
         return audioDeviceIndex
 
+    def next_audio_device(self):
+        self.audio_capture_impl.next_audio_device()
+
     def uninitialize(self):
         if self.audio_capture_impl:
-            self.audio_capture_impl.stop_recording()
             self.audio_capture_impl.uninitialize()
             self.audio_capture_impl = None

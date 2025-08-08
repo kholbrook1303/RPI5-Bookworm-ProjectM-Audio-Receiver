@@ -2,10 +2,12 @@
 import os
 import re
 import time
+import threading
 
 from pulsectl import Pulse, PulseVolumeInfo
 from pulsectl.pulsectl import PulseOperationFailed
 
+from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
 from lib.constants import DeviceCatalog, PluginDevice
 from lib.common import execute
@@ -16,21 +18,22 @@ PROJECTM_MONO = 1
 PROJECTM_STEREO = 2
 
 
-class AudioManager:
+class AudioCtrl(Controller, threading.Thread):
     """Controller for managing PulseAudio devices and profiles.
     @param thread_event: Event to signal when the thread should stop.
     @param config: Configuration object containing audio settings.
     """
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, thread_event, config):
+        super().__init__(thread_event, config)
+        threading.Thread.__init__(self)
         
-        self.audio_mode             = self.config.audio_ctrl.get('audio_mode', 'automatic')
-        self.io_device_mode         = self.config.audio_ctrl.get('io_device_mode', 'aux')
-        self.allow_multiple_sinks   = self.config.audio_ctrl.get('allow_multiple_sinks', True)
-        self.allow_multiple_sources = self.config.audio_ctrl.get('allow_multiple_sources', True)
+        self.audio_mode             = self._config.audio_ctrl.get('audio_mode', 'automatic')
+        self.io_device_mode         = self._config.audio_ctrl.get('io_device_mode', 'aux')
+        self.allow_multiple_sinks   = self._config.audio_ctrl.get('allow_multiple_sinks', True)
+        self.allow_multiple_sources = self._config.audio_ctrl.get('allow_multiple_sources', True)
 
         self.audio_listener_thread  = None
-        self.audio_listener_enabled = self.config.audio_ctrl.get('audio_listener_enabled', True)
+        self.audio_listener_enabled = self._config.audio_ctrl.get('audio_listener_enabled', True)
 
         config_path = os.path.join(APP_ROOT, 'conf')
 
@@ -412,9 +415,9 @@ class AudioManager:
                 
                 sink_volume = None
                 if self.audio_mode == 'automatic':
-                    sink_volume = self.config.automatic.get('sink_device_volume', 1.0)
+                    sink_volume = self._config.automatic.get('sink_device_volume', 1.0)
                 elif self.audio_mode == 'manual':
-                    sink_volume = self.config.manual.get('combined_sink_volume', 1.0)
+                    sink_volume = self._config.manual.get('combined_sink_volume', 1.0)
 
                 if not isinstance(sink_volume, float):
                     log.warning('Combined sink requires a float object')
@@ -458,12 +461,12 @@ class AudioManager:
                 if sink_device.active:
                     continue
 
-                sink_device_type = self.config.automatic.get('sink_device_type', None)
+                sink_device_type = self._config.automatic.get('sink_device_type', None)
                 if sink_device_type and sink_device.type != sink_device_type:
                     log.debug('Skipping sink {} as it is not {}'.format(sink_name, sink_device_type))
                     continue
 
-                sink_volume = self.config.automatic.get('sink_device_volume', 1.0)
+                sink_volume = self._config.automatic.get('sink_device_volume', 1.0)
                 if not isinstance(sink_volume, float):
                     log.warning('Sink {} does not have a float value for volume'.format(sink_name))
                     sink_volume = 1.0
@@ -625,12 +628,12 @@ class AudioManager:
                 if source_device.active:
                     continue
 
-                source_device_type = self.config.automatic.get('source_device_type', None)
+                source_device_type = self._config.automatic.get('source_device_type', None)
                 if source_device_type and source_device.type != source_device_type:
                     log.debug('Skipping source {} as it is not {}'.format(source_name, source_device_type))
                     continue
 
-                source_volume = self.config.automatic.get('source_device_volume', .85)
+                source_volume = self._config.automatic.get('source_device_volume', .85)
                 if not isinstance(source_volume, float):
                     log.warning('Source {} does not have a float value for volume'.format(source_name))
                     source_volume = .85
@@ -703,8 +706,8 @@ class AudioManager:
     """Get supported cards based on the audio mode"""
     def get_supported_cards(self):
         if self.audio_mode == 'automatic':      # Need to evaluate additonal options for automatic card profile configuration
-            card_profile_types = self.config.automatic.get('card_profile_types', list())
-            card_profile_modes = self.config.automatic.get('card_profile_modes', list())
+            card_profile_types = self._config.automatic.get('card_profile_types', list())
+            card_profile_modes = self._config.automatic.get('card_profile_modes', list())
 
             if len(card_profile_types) == 0 or len(card_profile_modes) == 0:
                 log.warning('Skipping card control as there are missing configurations in projectMAR.conf')
@@ -885,7 +888,7 @@ class AudioManager:
 
     """Run the audio controller thread to handle PulseAudio devices"""
     def run(self):
-        while not self.thread_event.is_set():
+        while not self._thread_event.is_set():
             try:
                 self.handle_devices()
 

@@ -264,6 +264,12 @@ class ProjectMWrapper:
     def set_preset_index(self, index, softcut=True):
         self.projectm_playlist_lib.projectm_playlist_set_position(self._playlist, index, softcut)
 
+    def get_preset_shuffle(self):
+        return self.projectm_playlist_lib.projectm_playlist_get_shuffle(self._playlist)
+
+    def shuffle_playlist(self, shuffle):
+        self.projectm_playlist_lib.projectm_playlist_set_shuffle(self._playlist, shuffle)
+
     def get_preset_locked(self):
         return self.projectm_lib.projectm_get_preset_locked(self._projectM)
 

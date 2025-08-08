@@ -11,10 +11,7 @@ class PluginCtrl(Controller, threading.Thread):
     """Controller for managing audio plugins"""
     def __init__(self, thread_event, config):
         threading.Thread.__init__(self)
-        super().__init__(thread_event)
-
-        self.config         = config
-        self.thread_event   = thread_event
+        super().__init__(thread_event, config)
         
         self.audio_plugins_config = Config(os.path.join(APP_ROOT, 'conf', 'audio_plugins.conf'))
                   

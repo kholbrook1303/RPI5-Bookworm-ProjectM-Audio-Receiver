@@ -50,6 +50,13 @@ class SDLAudioCapture:
             sdl2.SDL_CloseAudioDevice(self._currentAudioDeviceID)
             self._currentAudioDeviceID = 0
 
+    def next_audio_device(self):
+        self.stop_recording()
+
+        device_id = ((self._currentAudioDeviceIndex + 2) % (sdl2.SDL_GetNumAudioDevices(True) + 1)) - 1
+
+        self.start_recording(device_id)
+
     def set_audio_device_index(self, index):
         if index > 1 and index < sdl2.SDL_GetNumAudioDevices(True):
             self._currentAudioDeviceID = index

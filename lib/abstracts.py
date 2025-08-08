@@ -13,7 +13,9 @@ class Controller:
     """Base class for all controllers in the projectMAR system.
     @param thread_event: an event to signal the thread to stop
     """
-    def __init__(self, thread_event):
+    def __init__(self, thread_event, config):
+        self._config = config
+
         self._threads = dict()
         self._thread_event = thread_event
         self._processes = dict()
