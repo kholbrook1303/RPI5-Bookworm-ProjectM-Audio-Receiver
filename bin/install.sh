@@ -453,7 +453,7 @@ install_plugin_plexamp() {
         # Download and install Plexamp
         mkdir -p /tmp/Builds
         wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.12.4.tar.bz2 -P /tmp/Builds
-        tar xvjf /tmp/Builds/Plexamp-Linux-headless-v4.12.2.tar.bz2 -C /tmp/Builds/
+        tar xvjf /tmp/Builds/Plexamp-Linux-headless-v4.12.4.tar.bz2 -C /tmp/Builds/
         rm -rf /opt/plexamp
         cp /tmp/Builds/plexamp/ /opt/ -r
     else
