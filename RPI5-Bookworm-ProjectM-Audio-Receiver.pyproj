@@ -25,7 +25,6 @@
   <ItemGroup>
     <Compile Include="controllers\display.py" />
     <Compile Include="controllers\plugins.py" />
-    <Compile Include="controllers\projectm.py" />
     <Compile Include="lib\abstracts.py" />
     <Compile Include="lib\common.py" />
     <Compile Include="lib\config.py" />
@@ -36,7 +35,6 @@
     <Compile Include="lib\projectM\ProjectMWrapper.py" />
     <Compile Include="lib\projectM\RenderingLoop.py" />
     <Compile Include="lib\projectM\SDLRendering.py" />
-    <Compile Include="presetManagement.py" />
     <Compile Include="projectMAR.py" />
   </ItemGroup>
   <ItemGroup>
@@ -58,6 +56,17 @@
     <Folder Include="bin\" />
     <Folder Include="controllers\" />
     <Folder Include="lib\projectM\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include="env\">
+      <Id>env</Id>
+      <Version>3.12</Version>
+      <Description>env (Python 3.12 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

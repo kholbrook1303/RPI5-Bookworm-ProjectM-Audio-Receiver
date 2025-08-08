@@ -1,17 +1,20 @@
 # Raspberry Pi 5 - ProjectM Audio Receiver
 
 ## ProjectMAR News:
-
-### In this latest update:
 ***Note:** If you are not up-to-date, you may find that there are drastic differences in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
 
  - All new native SDL frontend that handles both graphic rendering and PCM audio data forwarding to libprojectM (Initial Release).
    - frontend-sdl-cpp and linPoco are no longer required
    - uinput used to simulate keypresses when presets stall is no longer required (SDL handles inputs unless your onn Raspberry Pi OS lite which will leverage evdev to send keyboard events to SDL event queue)
-   - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive
-   - All configurations/presets/textures are now moved back to the projectMAR folder
+   - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive (Not all keys are currently present but will be expanded in the near future; Basic functionality like previous and next preset, increase or decrease beat sensitivity, as well as application exit and windowed mode are already added)
+   - All configurations/presets/textures are now moved back to the projectMAR folder (But are configurable)
    - projectM configurations are now located in /opt/ProjectMAR/conf/projectMSDL.conf
  - AudioCtrl (Pulseaudio management) has been moved from the controller and is handled in the main rendering loop.
+ - ProjectMAR configuration has been better labeled and some features like screenshots removed.
+ - To better suit VDJ needs I have added a condition that will ensure presets switch within their given duration, unless the preset is locked for which it will not enforce preset duration until unlocked.
+ - projectMSDL.conf will be shipped out of the box with RPI 5 recommended settings.  The installer will still set the appropriate resolutions for you if using a non-standard setup like RPI 4 and/or composite video.
+
+ As always, if there is a feature you would like to see or an issue experienced, do not hesitate to reach out.  For any issues please ensure you provide your setup details so that your issue can be reproduced.
 
 ## What is this?
 The ProjectM Audio Receiver will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
