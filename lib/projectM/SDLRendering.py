@@ -21,7 +21,8 @@ class SDLRendering:
     def uninitialize(self):
         sdl2.SDL_GL_DeleteContext(self.gl_context)
         sdl2.SDL_DestroyWindow(self.rendering_window)
-        sdl2.SDL_Quit()
+        self.rendering_window = None
+        sdl2.SDL_QuitSubSystem(sdl2.SDL_INIT_VIDEO)
 
     def get_drawable_size(self, width, height):
         sdl2.SDL_GL_GetDrawableSize(self.rendering_window, width, height)
@@ -36,8 +37,8 @@ class SDLRendering:
         sdl2.SDL_GetWindowSize(self.rendering_window, self.last_window_width, self.last_window_height)
         sdl2.SDL_ShowCursor(False)
         
-        fullscreen_width = self.projectm_config.get('window.fullscreen.width', 0)
-        fullscreen_height = self.projectm_config.get('window.fullscreen.height', 0)
+        fullscreen_width = self.projectm_config.get('window.fullscreen.width', 1280)
+        fullscreen_height = self.projectm_config.get('window.fullscreen.height', 720)
         if get_environment() == 'lite':
             
             if (fullscreen_width > 0 and fullscreen_height > 0):
@@ -53,7 +54,7 @@ class SDLRendering:
 
     def windowed(self):
         sdl2.SDL_SetWindowFullscreen(self.rendering_window, 0)
-        sdl2.SDL_SetWindowBordered(self.rendering_window, sdl2.SDL_TRUE if self.projectm_config.get('window.borderless', False) else sdl2.SDL_FALSE)
+        sdl2.SDL_SetWindowBordered(self.rendering_window, sdl2.SDL_FALSE if self.projectm_config.get('window.borderless', False) else sdl2.SDL_TRUE)
 
         width = self.last_window_width.value
         height = self.last_window_height.value
@@ -87,13 +88,13 @@ class SDLRendering:
         # sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_DEPTH_SIZE, 24)
 
         width = self.projectm_config.get('window.width', 800)
-        height = self.projectm_config.get('window.height', 800)
-        create_flags = sdl2.SDL_WINDOW_OPENGL | sdl2.SDL_WINDOW_RESIZABLE | sdl2.SDL_WINDOW_ALLOW_HIGHDPI
+        height = self.projectm_config.get('window.height', 600)
+        left = self.projectm_config.get('window.left', 0)
+        top = self.projectm_config.get('window.top', 0)
 
         self.rendering_window = sdl2.SDL_CreateWindow(
-            b"projectM Python SDL2", 
-            sdl2.SDL_WINDOWPOS_CENTERED, sdl2.SDL_WINDOWPOS_CENTERED, 
-            width, height, create_flags
+            b"projectM Python SDL2", left, top, width, height, 
+            sdl2.SDL_WINDOW_OPENGL | sdl2.SDL_WINDOW_RESIZABLE | sdl2.SDL_WINDOW_ALLOW_HIGHDPI
         )
         if not self.rendering_window:
             log.error("SDL_CreateWindow Error:", sdl2.SDL_GetError())
@@ -109,14 +110,14 @@ class SDLRendering:
 
         self.set_sdl_window_title(b"projectM")
         sdl2.SDL_GL_MakeCurrent(self.rendering_window, self.gl_context)
-        self.update_swap_interface()
+        self.update_swap_interval()
 
         if self.projectm_config.get('window.fullscreen', False):
             self.fullscreen()
         else:
             self.windowed()
 
-    def update_swap_interface(self):
+    def update_swap_interval(self):
         if self.projectm_config.get('window.waitforverticalsync', True):
             sdl2.SDL_GL_SetSwapInterval(0)
             return
