@@ -184,45 +184,36 @@ configure_projectmar() {
     log "Configuring projectMAR"
 
   # Set the appropriate resolution in configuration
+    sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.fullscreen .*/window.fullscreen = true/"
+
     if [ $VIDEO_OUTPUT = "composite" ]; then
         sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=720/"
         sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=480/"
+
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 480/"
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.width .*/window.width = 600/"
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.height .*/window.height = 400/"
+
+        if [ $RPI_MODEL = "4" ]; then
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
+
+        fi
+
     elif [ $VIDEO_OUTPUT = "hdmi" ]; then
         if [ $RPI_MODEL = "4" ]; then
             sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=720/"
             sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=576/"
-        fi
-    fi
-}
-
-configure_projectmsdl() {
-    log "Configuring projectMSDL"
-
-    # Set projectMSDL.properties configuration
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen .*/window.fullscreen = true/"
-    
-    if [ $VIDEO_OUTPUT = "composite" ]; then
-        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
-        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 480/"
-        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 600/"
-        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 400/"
-
-        if [ $RPI_MODEL = "4" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-
-        fi
-    elif [ $VIDEO_OUTPUT = "hdmi" ]; then
-        if [ $RPI_MODEL = "4" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 576/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 600/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 450/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-
+            
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 576/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.width .*/window.width = 600/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?window.height .*/window.height = 450/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
         fi
     fi
 }
@@ -577,9 +568,8 @@ if [ -n "$INSTALLATION_MODE" ]; then
 
         # Configure projectM and Audio Receiver
         if $configure; then
-            log "Configuring projectMSDL and projectMAR..."
+            log "Configuring projectMAR..."
             configure_projectmar
-            configure_projectmsdl
         fi
 
         if $INSTALLATION_AUTOSTART; then

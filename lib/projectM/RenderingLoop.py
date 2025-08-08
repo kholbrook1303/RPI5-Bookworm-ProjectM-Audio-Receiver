@@ -40,16 +40,15 @@ class SignalMonitor:
         self.exit = True
 
 class RenderingLoop:
-    def __init__(self, config, projectm_config, thread_event):
+    def __init__(self, config, thread_event):
         self.config = config
-        self.projectm_config = projectm_config
         self.pressed_modifiers = set()
 
         self.signal = SignalMonitor()
         self.thread_event = thread_event
         
-        self.sdl_rendering = SDLRendering(self.projectm_config)
-        self.projectm_wrapper = ProjectMWrapper(self.projectm_config, self.sdl_rendering)
+        self.sdl_rendering = SDLRendering(self.config)
+        self.projectm_wrapper = ProjectMWrapper(self.config, self.sdl_rendering)
 
         # Create and start audio capture
         self.audio_capture = AudioCapture(self.projectm_wrapper)
@@ -82,7 +81,7 @@ class RenderingLoop:
             self.sdl_rendering.swap()
 
             # Frame limiting (simple)
-            sdl2.SDL_Delay(int(1000 / self.projectm_config.get("projectm.fps", 60)))
+            sdl2.SDL_Delay(int(1000 / self.config.projectm.get("projectm.fps", 60)))
 
             if self.preset_hung() and not self.projectm_wrapper.get_preset_locked():
                 self.simulate_keypress(sdl2.SDLK_n)
@@ -222,7 +221,7 @@ class RenderingLoop:
     def preset_hung(self):
         if self.projectm_wrapper._current_preset_start:
             duration = time.time() - self.projectm_wrapper._current_preset_start
-            if duration >= (self.projectm_config.get("projectm.displayduration", 60)):
+            if duration >= (self.config.projectm.get("projectm.displayduration", 60)):
                 return True
 
         return False

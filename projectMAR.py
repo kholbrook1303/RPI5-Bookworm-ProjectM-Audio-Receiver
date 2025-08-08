@@ -25,9 +25,6 @@ class ProjectMAR:
         self.refresh_event  = Event()
         self.ctrl_threads   = list()
         
-        config_path = os.path.join(APP_ROOT, 'conf', 'projectMSDL.conf')
-        self.projectm_config = Config(config_path)
-        
         log.info('Initializing projectMAR System Control in {0} mode...'.format(
             config.audio_ctrl.get('audio_mode', 'automatic')
             ))
@@ -43,7 +40,7 @@ class ProjectMAR:
     def run(self):
 
         try:
-            rendering_loop = RenderingLoop(self.config, self.projectm_config.projectm, self.thread_event)
+            rendering_loop = RenderingLoop(self.config, self.thread_event)
 
             for controller in self.ctrl_threads:
                 controller.start()

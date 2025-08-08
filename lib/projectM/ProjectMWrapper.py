@@ -21,11 +21,11 @@ def on_preset_switch_failed(error_msg, context):
     instance.on_preset_switch_failed(error_msg)
 
 class ProjectMWrapper:
-    def __init__(self, projectm_config, sdl_rendering):
-        self.projectm_config = projectm_config
+    def __init__(self, config, sdl_rendering):
+        self.config = config
 
         log.info('The projectM settings are as follows:')
-        for key, val in self.projectm_config.items():
+        for key, val in self.config.projectm.items():
             log.info(f'{key}: {val}')
 
         self.projectm_lib = ctypes.CDLL("/usr/local/lib/libprojectM-4.so")
@@ -104,28 +104,28 @@ class ProjectMWrapper:
                 log.error("Failed to initialize projectM. Possible reasons are a lack of required OpenGL features or GPU resources.")
                 raise RuntimeError("projectM initialization failed")
 
-            fps = self.projectm_config.get("projectm.fps", 60)
+            fps = self.config.projectm.get("projectm.fps", 60)
             if fps <= 0:
                 fps = 60
 
             self.set_window_size(canvas_width, canvas_height)
             self.projectm_lib.projectm_set_fps(self._projectM, fps)
-            self.projectm_lib.projectm_set_mesh_size(self._projectM, self.projectm_config.get("projectm.meshx", 64), self.projectm_config.get("projectm.meshy", 32))
-            self.projectm_lib.projectm_set_aspect_correction(self._projectM, self.projectm_config.get("projectm.aspectcorrectionenabled", True))
-            self.projectm_lib.projectm_set_preset_locked(self._projectM, self.projectm_config.get("projectm.presetlocked", False))
-            self.projectm_lib.projectm_set_preset_duration(self._projectM, self.projectm_config.get("projectm.displayduration", 60))
-            self.projectm_lib.projectm_set_soft_cut_duration(self._projectM, self.projectm_config.get("projectm.transitionduration", 0))
-            self.projectm_lib.projectm_set_hard_cut_enabled(self._projectM, self.projectm_config.get("projectm.hardcutsenabled", True))
-            self.projectm_lib.projectm_set_hard_cut_duration(self._projectM, self.projectm_config.get("projectm.hardcutduration", 30))
-            self.projectm_lib.projectm_set_hard_cut_sensitivity(self._projectM, float(self.projectm_config.get("projectm.hardcutsensitivity", 2)))
-            self.projectm_lib.projectm_set_beat_sensitivity(self._projectM, float(self.projectm_config.get("projectm.beatsensitivity", 2)))
+            self.projectm_lib.projectm_set_mesh_size(self._projectM, self.config.projectm.get("projectm.meshx", 64), self.config.projectm.get("projectm.meshy", 32))
+            self.projectm_lib.projectm_set_aspect_correction(self._projectM, self.config.projectm.get("projectm.aspectcorrectionenabled", True))
+            self.projectm_lib.projectm_set_preset_locked(self._projectM, self.config.projectm.get("projectm.presetlocked", False))
+            self.projectm_lib.projectm_set_preset_duration(self._projectM, self.config.projectm.get("projectm.displayduration", 60))
+            self.projectm_lib.projectm_set_soft_cut_duration(self._projectM, self.config.projectm.get("projectm.transitionduration", 0))
+            self.projectm_lib.projectm_set_hard_cut_enabled(self._projectM, self.config.projectm.get("projectm.hardcutsenabled", True))
+            self.projectm_lib.projectm_set_hard_cut_duration(self._projectM, self.config.projectm.get("projectm.hardcutduration", 30))
+            self.projectm_lib.projectm_set_hard_cut_sensitivity(self._projectM, float(self.config.projectm.get("projectm.hardcutsensitivity", 2)))
+            self.projectm_lib.projectm_set_beat_sensitivity(self._projectM, float(self.config.projectm.get("projectm.beatsensitivity", 2)))
 
             self._playlist = self.projectm_playlist_lib.projectm_playlist_create(self._projectM)
             if not self._playlist:
                 log.error("Failed to create the projectM preset playlist manager instance.")
                 raise RuntimeError("Playlist initialization failed")
 
-            self.projectm_playlist_lib.projectm_playlist_set_shuffle(self._playlist, self.projectm_config.get("projectm.shuffleenabled", False))
+            self.projectm_playlist_lib.projectm_playlist_set_shuffle(self._playlist, self.config.projectm.get("projectm.shuffleenabled", False))
 
             texture_path_index = 0
             texture_paths = list()
@@ -134,9 +134,9 @@ class ProjectMWrapper:
                 if texture_path_index > 0:
                     config_key += '.{}'.format(texture_path_index)
 
-                if self.projectm_config.get(config_key, None):
-                    log.info('Adding preset path {} {}'.format(config_key, self.projectm_config.get(config_key)))
-                    texture_paths.append(self.projectm_config.get(config_key))
+                if self.config.projectm.get(config_key, None):
+                    log.info('Adding preset path {} {}'.format(config_key, self.config.projectm.get(config_key)))
+                    texture_paths.append(self.config.projectm.get(config_key))
 
                 else:
                     break
@@ -159,9 +159,9 @@ class ProjectMWrapper:
                 if preset_path_index > 0:
                     config_key += '.{}'.format(preset_path_index)
 
-                if self.projectm_config.get(config_key, None):
-                    log.info('Adding preset path {} {}'.format(config_key, self.projectm_config.get(config_key)))
-                    preset_paths.append(self.projectm_config.get(config_key))
+                if self.config.projectm.get(config_key, None):
+                    log.info('Adding preset path {} {}'.format(config_key, self.config.projectm.get(config_key)))
+                    preset_paths.append(self.config.projectm.get(config_key))
 
                 else:
                     break
@@ -215,7 +215,7 @@ class ProjectMWrapper:
         self._current_preset_start = time.time()
         log.info(f"[{is_hard_cut=}] Preset switched to: {self._current_preset}")
 
-        if self.projectm_config.get("window.displaypresetnameintitle", True):
+        if self.config.projectm.get("window.displaypresetnameintitle", True):
             self._sdl_rendering.set_sdl_window_title(self._current_preset.rsplit('/', 1)[1].encode())
 
     def on_preset_switch_failed(self, error_msg: str):
@@ -233,8 +233,8 @@ class ProjectMWrapper:
         return item.decode('utf-8')
 
     def display_initial_preset(self):
-        if not self.projectm_config.get("projectm.enablesplash", False):
-            if self.projectm_config.get("projectm.shuffleenabled", False):
+        if not self.config.projectm.get("projectm.enablesplash", False):
+            if self.config.projectm.get("projectm.shuffleenabled", False):
                 self.projectm_playlist_lib.projectm_playlist_play_next(self._playlist, True)
             else:
                 self.projectm_playlist_lib.projectm_playlist_set_position(self._playlist, 0, True)
@@ -295,7 +295,7 @@ class ProjectMWrapper:
         self.projectm_lib.projectm_opengl_render_frame(self._projectM)
 
     def target_fps(self):
-        return self.projectm_config.get("projectm.fps", 60)
+        return self.config.projectm.get("projectm.fps", 60)
 
     def update_real_fps(self, fps):
         self.projectm_lib.projectm_set_fps(self._projectM, int(round(fps)))

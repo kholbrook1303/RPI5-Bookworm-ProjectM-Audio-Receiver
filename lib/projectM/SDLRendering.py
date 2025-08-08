@@ -7,8 +7,8 @@ from lib.common import get_environment
 log = logging.getLogger()
 
 class SDLRendering:
-    def __init__(self, projectm_config):
-        self.projectm_config = projectm_config
+    def __init__(self, config):
+        self.config = config
         self.rendering_window = None
         self.gl_context = None
 
@@ -37,8 +37,8 @@ class SDLRendering:
         sdl2.SDL_GetWindowSize(self.rendering_window, self.last_window_width, self.last_window_height)
         sdl2.SDL_ShowCursor(False)
         
-        fullscreen_width = self.projectm_config.get('window.fullscreen.width', 1280)
-        fullscreen_height = self.projectm_config.get('window.fullscreen.height', 720)
+        fullscreen_width = self.config.projectm.get('window.fullscreen.width', 1280)
+        fullscreen_height = self.config.projectm.get('window.fullscreen.height', 720)
         if get_environment() == 'lite':
             
             if (fullscreen_width > 0 and fullscreen_height > 0):
@@ -54,7 +54,10 @@ class SDLRendering:
 
     def windowed(self):
         sdl2.SDL_SetWindowFullscreen(self.rendering_window, 0)
-        sdl2.SDL_SetWindowBordered(self.rendering_window, sdl2.SDL_FALSE if self.projectm_config.get('window.borderless', False) else sdl2.SDL_TRUE)
+        sdl2.SDL_SetWindowBordered(
+            self.rendering_window, 
+            sdl2.SDL_FALSE if self.config.projectm.get('window.borderless', False) else sdl2.SDL_TRUE
+            )
 
         width = self.last_window_width.value
         height = self.last_window_height.value
@@ -87,10 +90,10 @@ class SDLRendering:
         # sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_DOUBLEBUFFER, 1)
         # sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_DEPTH_SIZE, 24)
 
-        width = self.projectm_config.get('window.width', 800)
-        height = self.projectm_config.get('window.height', 600)
-        left = self.projectm_config.get('window.left', 0)
-        top = self.projectm_config.get('window.top', 0)
+        width = self.config.projectm.get('window.width', 800)
+        height = self.config.projectm.get('window.height', 600)
+        left = self.config.projectm.get('window.left', 0)
+        top = self.config.projectm.get('window.top', 0)
 
         self.rendering_window = sdl2.SDL_CreateWindow(
             b"projectM Python SDL2", left, top, width, height, 
@@ -112,16 +115,16 @@ class SDLRendering:
         sdl2.SDL_GL_MakeCurrent(self.rendering_window, self.gl_context)
         self.update_swap_interval()
 
-        if self.projectm_config.get('window.fullscreen', False):
+        if self.config.projectm.get('window.fullscreen', False):
             self.fullscreen()
         else:
             self.windowed()
 
     def update_swap_interval(self):
-        if self.projectm_config.get('window.waitforverticalsync', True):
+        if self.config.projectm.get('window.waitforverticalsync', True):
             sdl2.SDL_GL_SetSwapInterval(0)
             return
 
-        if self.projectm_config.get('window.adaptiveverticalsync', True):
+        if self.config.projectm.get('window.adaptiveverticalsync', True):
             if sdl2.SDL_GL_SetSwapInterval(-1) == 0:
                 return
