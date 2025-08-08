@@ -23,14 +23,19 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="controllers\audio.py" />
     <Compile Include="controllers\display.py" />
     <Compile Include="controllers\plugins.py" />
     <Compile Include="controllers\projectm.py" />
     <Compile Include="lib\abstracts.py" />
+    <Compile Include="lib\common.py" />
     <Compile Include="lib\config.py" />
     <Compile Include="lib\constants.py" />
     <Compile Include="lib\log.py" />
+    <Compile Include="lib\projectM\AudioCapture.py" />
+    <Compile Include="lib\projectM\AudioCaptureImpl_SDL.py" />
+    <Compile Include="lib\projectM\ProjectMWrapper.py" />
+    <Compile Include="lib\projectM\RenderingLoop.py" />
+    <Compile Include="lib\projectM\SDLRendering.py" />
     <Compile Include="presetManagement.py" />
     <Compile Include="projectMAR.py" />
   </ItemGroup>
@@ -41,6 +46,8 @@
     <Content Include="conf\audio_sinks.conf" />
     <Content Include="conf\audio_sources.conf" />
     <Content Include="bin\install.sh" />
+    <Content Include="conf\projectMSDL.conf" />
+    <Content Include="lib\audio.py" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
@@ -50,6 +57,7 @@
     <Folder Include="conf\" />
     <Folder Include="bin\" />
     <Folder Include="controllers\" />
+    <Folder Include="lib\projectM\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

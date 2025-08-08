@@ -21,15 +21,12 @@ if [ -e "$INSTALLATION_LOGFILE" ]; then
   mv "$INSTALLATION_LOGFILE" "${INSTALLATION_LOGFILE}.${idx}"
 fi
 
-PROJECTMSDL_PATH="/opt/ProjectMSDL"
 PROJECTMAR_PATH="/opt/ProjectMAR"
 TMP_BUILDS="/tmp/Builds"
 VIDEO_OUTPUT=""
 RPI_MODEL=""
 
 LIBPROJECTM_VERSION="4.1.4"
-LIBPOCO_VERSION="1.12.5p2"
-UINPUT_VERSION="1.0.1"
 
 usage() {
     cat << EOF
@@ -138,110 +135,6 @@ install_libprojectm() {
     fi
 }
 
-install_libpoco() {
-    if is_library_current "libPocoXML.so.95"; then
-        log "libPoco is already installed"
-    else
-        log "Installing libPoco (This will take some time)"
-        
-        # Download/extract/build libPoco-dev
-        wget "https://github.com/pocoproject/poco/archive/refs/tags/poco-$LIBPOCO_VERSION-release.tar.gz" -P "$TMP_BUILDS"
-        tar xf "$TMP_BUILDS/poco-$LIBPOCO_VERSION-release.tar.gz" -C "$TMP_BUILDS"
-        mkdir -p "$TMP_BUILDS/poco-poco-$LIBPOCO_VERSION-release/cmake-build"
-        cmake -S "$TMP_BUILDS/poco-poco-$LIBPOCO_VERSION-release" -B "$TMP_BUILDS/poco-poco-$LIBPOCO_VERSION-release/cmake-build"
-        cmake --build "$TMP_BUILDS/poco-poco-$LIBPOCO_VERSION-release/cmake-build" --config Release
-        cmake --build "$TMP_BUILDS/poco-poco-$LIBPOCO_VERSION-release/cmake-build" --target install
-
-        # Transfer the libs to /user/lib/
-        cp /usr/local/lib/libPoco* /usr/lib/
-    fi
-}
-
-install_frontend_sdl() {
-    if ! [ -f "$PROJECTMSDL_PATH/projectMSDL" ] || ! [ -f "$PROJECTMSDL_PATH/projectMSDL.properties" ]; then
-        log "Installing projectMSDL"
-
-        # Move SDL build to opt
-        mkdir -p "$PROJECTMSDL_PATH"
-
-        # Install frontend-sdl2 package dependencies
-        apt install -y libsdl2-dev libfreetype-dev
-
-        # Download/build frontend-sdl2
-        git clone https://github.com/kholbrook1303/frontend-sdl2.git "$TMP_BUILDS/frontend-sdl2"
-        git config --global --add safe.directory "$TMP_BUILDS/frontend-sdl2"
-        git -C "$TMP_BUILDS/frontend-sdl2" submodule init
-        retry_function "git -C $TMP_BUILDS/frontend-sdl2 submodule update" 10 5
-        mkdir -p "$TMP_BUILDS/frontend-sdl2/cmake-build"
-        cmake -S "$TMP_BUILDS/frontend-sdl2" -B "$TMP_BUILDS/frontend-sdl2/cmake-build" -DCMAKE_BUILD_TYPE=Release
-        cmake --build "$TMP_BUILDS/frontend-sdl2/cmake-build" --config Release
-
-        # Move projectMSDL
-        cp -r "$TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL" "$PROJECTMSDL_PATH/projectMSDL"
-        cp -r "$TMP_BUILDS/frontend-sdl2/cmake-build/src/projectMSDL.properties" "$PROJECTMSDL_PATH/projectMSDL.properties"
-
-
-        # Setup textures and presets
-        git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git /tmp/Builds/RPI5-ProjectM-Presets-Textures
-        cp "$TMP_BUILDS/RPI5-ProjectM-Presets-Textures/presets/" "$PROJECTMSDL_PATH" -R
-        cp "$TMP_BUILDS/RPI5-ProjectM-Presets-Textures/textures/" "$PROJECTMSDL_PATH" -R
-
-        # Set permissions on projectMSDL
-        adjust_user_permissions $PROJECTMSDL_PATH
-    else
-        log "projectMSDL is already installed"
-    fi
-}
-
-configure_frontend_sdl() {
-    log "Configuring projectMSDL"
-
-    # Set projectMSDL.properties configuration
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.fullscreen .*/window.fullscreen = true/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.fullscreen.exclusiveMode .*/window.fullscreen.exclusiveMode = true/"
-    
-    if [ $VIDEO_OUTPUT = "composite" ]; then
-        sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.width .*/window.width = 720/"
-        sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.height .*/window.height = 480/"
-
-        if [ $RPI_MODEL = "4" ]; then
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-
-        elif [ $RPI_MODEL = "5" ]; then
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 60/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 64/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-
-        fi
-    elif [ $VIDEO_OUTPUT = "hdmi" ]; then
-        if [ $RPI_MODEL = "4" ]; then
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.width .*/window.width = 720/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.height .*/window.height = 576/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-
-        elif [ $RPI_MODEL = "5" ]; then
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.width .*/window.width = 1280/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?window.height .*/window.height = 720/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 60/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 64/"
-            sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-        fi
-    fi
-
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.presetPath .*/projectM.presetPath = \/opt\/ProjectMSDL\/presets/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.texturePath .*/projectM.texturePath = \/opt\/ProjectMSDL\/textures/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.displayDuration .*/projectM.displayDuration = 60/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.shuffleEnabled .*/projectM.shuffleEnabled = false/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.transitionDuration .*/projectM.transitionDuration = 0/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.hardCutsEnabled .*/projectM.hardCutsEnabled = true/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?projectM.hardCutDuration .*/projectM.hardCutDuration = 30/"
-    sed "$PROJECTMSDL_PATH/projectMSDL.properties" -i -e "s/^#\\?logging.channels.file.path .*/logging.channels.file.path = \/opt\/ProjectMSDL\/ProjectMSDL.log/"
-}
-
 install_projectmar() {
     log "Installing ProjectMAR"
 
@@ -249,7 +142,7 @@ install_projectmar() {
     git clone -b dev https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
     mkdir -p "$PROJECTMAR_PATH"
     
-    appItems=("conf" "lib" "projectMAR.py" "requirements.txt")
+    appItems=("conf" "lib" "controllers" "projectMAR.py" "requirements.txt")
     for appItem in "${appItems[@]}"; do
         if [ "$appItem" = "conf" ]; then
             if [ -d "$PROJECTMAR_PATH/conf" ]; then
@@ -263,6 +156,11 @@ install_projectmar() {
             cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
         fi
     done
+
+    # Setup textures and presets
+    git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git /tmp/Builds/RPI5-ProjectM-Presets-Textures
+    cp "$TMP_BUILDS/RPI5-ProjectM-Presets-Textures/presets/" "$PROJECTMAR_PATH" -R
+    cp "$TMP_BUILDS/RPI5-ProjectM-Presets-Textures/textures/" "$PROJECTMAR_PATH" -R
 
     # Set permissions on projectMAR
     adjust_user_permissions $PROJECTMAR_PATH
@@ -284,14 +182,72 @@ configure_projectmar() {
 
   # Set the appropriate resolution in configuration
     if [ $VIDEO_OUTPUT = "composite" ]; then
-        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution.*/resolution=720x480/"
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=720/"
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=480/"
     elif [ $VIDEO_OUTPUT = "hdmi" ]; then
         if [ $RPI_MODEL = "4" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution.*/resolution=720x576/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=720/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=576/"
         elif [ $RPI_MODEL = "5" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution.*/resolution=1280x720/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=1280/"
+            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=720/"
         fi
     fi
+}
+
+configure_projectmsdl() {
+    log "Configuring projectMSDL"
+
+    # Set projectMSDL.properties configuration
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen .*/window.fullscreen = true/"
+    
+    if [ $VIDEO_OUTPUT = "composite" ]; then
+        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
+        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 480/"
+        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 720/"
+        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 480/"
+
+        if [ $RPI_MODEL = "4" ]; then
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
+
+        elif [ $RPI_MODEL = "5" ]; then
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 60/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 64/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
+
+        fi
+    elif [ $VIDEO_OUTPUT = "hdmi" ]; then
+        if [ $RPI_MODEL = "4" ]; then
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 576/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 720/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 576/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
+
+        elif [ $RPI_MODEL = "5" ]; then
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 1280/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 720/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 1280/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 720/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 60/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 64/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
+        fi
+    fi
+
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.presetPath .*/projectM.presetPath = \/opt\/ProjectMAR\/presets/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.texturePath .*/projectM.texturePath = \/opt\/ProjectMAR\/textures/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.displayDuration .*/projectM.displayDuration = 60/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.shuffleEnabled .*/projectM.shuffleEnabled = true/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.transitionDuration .*/projectM.transitionDuration = 0/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutSensitivity .*/projectM.beatSensitivity = 2.0/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutsEnabled .*/projectM.hardCutsEnabled = true/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutDuration .*/projectM.hardCutDuration = 30/"
+    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutSensitivity .*/projectM.hardCutSensitivity = 2.0/"
 }
 
 configure_projectmar_autostart() {
@@ -321,45 +277,6 @@ Restart=on-failure
 WantedBy=default.target
 EOF
         fi
-    fi
-}
-
-install_uinput() {
-    pythonPackages=$("$PROJECTMAR_PATH/env/bin/python3" -m pip list)
-    if [[ "$pythonPackages" =~ "python-uinput $inputCurrent" ]]; then
-        log "uinput is already installed"
-    else
-        log "Installing uinput"
-        
-        # Setup additional python dependencies
-        wget "https://github.com/pyinput/python-uinput/archive/refs/tags/$UINPUT_VERSION.tar.gz" -P "$TMP_BUILDS"
-        tar xf "$TMP_BUILDS/$UINPUT_VERSION.tar.gz" -C "$TMP_BUILDS"
-        cd "$TMP_BUILDS/python-uinput-$UINPUT_VERSION"
-        "$PROJECTMAR_PATH/env/bin/python3" "$TMP_BUILDS/python-uinput-$UINPUT_VERSION/setup.py" build
-        "$PROJECTMAR_PATH/env/bin/python3" "$TMP_BUILDS/python-uinput-$UINPUT_VERSION/setup.py" install
-    fi
-    
-    # Create a new udev user group
-    if ! getent group uinput > /dev/null 2>&1; then
-        addgroup uinput
-        usermod -a -G uinput $SUDO_USER
-        chown :uinput /dev/uinput
-        chmod 660 /dev/uinput
-    else
-        log "uinput group already exists!"
-    fi
-
-    # Create secure udev access rule
-    if ! grep -q "uinput" "/etc/udev/rules.d/99-uinput.rules"; then
-        echo "KERNEL=""uinput"", MODE=""0660"", GROUP=""uinput""" > /etc/udev/rules.d/99-uinput.rules
-
-        # Restart udev
-        udevadm control --reload-rules
-        systemctl restart udev
-    fi
-
-    if ! grep -q "uinput" "/etc/modules"; then
-        echo -e "\nuinput" >> /etc/modules
     fi
 }
 
@@ -535,7 +452,7 @@ install_plugin_plexamp() {
 
         # Download and install Plexamp
         mkdir -p /tmp/Builds
-        wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.12.2.tar.bz2 -P /tmp/Builds
+        wget https://plexamp.plex.tv/headless/Plexamp-Linux-headless-v4.12.4.tar.bz2 -P /tmp/Builds
         tar xvjf /tmp/Builds/Plexamp-Linux-headless-v4.12.2.tar.bz2 -C /tmp/Builds/
         rm -rf /opt/plexamp
         cp /tmp/Builds/plexamp/ /opt/ -r
@@ -663,7 +580,10 @@ if [ -n "$INSTALLATION_MODE" ]; then
         # Update repositories
         apt update
         # Install package dependencies
-        apt install -y pulseaudio
+        apt install -y pulseaudio python3-dev gcc
+        
+        # Add current user to input group for evdev device access
+        sudo usermod -aG input $SUDO_USER
         
         # Switch system to use pulseaudio (Pipewire is currently not supported)
         systemctl --global -q disable pipewire-pulse
@@ -675,11 +595,6 @@ if [ -n "$INSTALLATION_MODE" ]; then
 
         # Setup projectM requirements
         install_libprojectm
-        install_libpoco
-        install_frontend_sdl
-
-        # Setup uinput
-        install_uinput
 
         # Setup projectM Audio Receiver
         install_projectmar
@@ -687,8 +602,8 @@ if [ -n "$INSTALLATION_MODE" ]; then
         # Configure projectM and Audio Receiver
         if $configure; then
             log "Configuring projectMSDL and projectMAR..."
-            configure_frontend_sdl
             configure_projectmar
+            configure_projectmsdl
         fi
 
         if $INSTALLATION_AUTOSTART; then
@@ -716,7 +631,7 @@ if [ -n "$INSTALLATION_PLUGINS" ]; then
         done
 
     if [ -f "$PROJECTMAR_PATH/conf/projectMAR.conf" ]; then
-        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?audio_plugin.*/audio_plugin=True/"
+        sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?plugin_ctrl.*/plugin_ctrl=True/"
     fi
   
 else

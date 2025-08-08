@@ -2,87 +2,66 @@ import argparse
 import logging
 import json
 import os
-import signal
 import sys
-import time
 
 from threading import Event
 
+from lib.audio import AudioManager
 from lib.config import Config, APP_ROOT
+from lib.common import get_environment
 from lib.log import log_init
 
-from controllers.audio import AudioCtrl
+from lib.projectM.RenderingLoop import RenderingLoop
+
 from controllers.display import DisplayCtrl
 from controllers.plugins import PluginCtrl
-from controllers.projectm import ProjectMCtrl
 
 log = logging.getLogger()
-    
-class SignalMonitor:
-    """Monitor for system signals to gracefully exit the application"""
-    exit = False
-    def __init__(self):
-        signal.signal(signal.SIGINT, self.set_exit)
-        signal.signal(signal.SIGTERM, self.set_exit)
 
-    def set_exit(self, signum, frame):
-        self.exit = True
-
-"""Main function to initialize and run the projectMAR system control.
-@param config: the application configuration object
-"""
-def main(config):
-    sm              = SignalMonitor()
-    thread_event    = Event()
-    refresh_event   = Event()
-
-    log.info('Initializing projectMAR System Control in {0} mode...'.format(
-        config.audio_ctrl.get('audio_mode', 'automatic')
-        ))
-
-    controllers = list()
-
-    audio_ctrl = AudioCtrl(thread_event, config)
-    if config.general.get('audio_ctrl', True):
-        controllers.append(audio_ctrl)
-
-    plugin_ctrl = PluginCtrl(thread_event, config)
-    if config.general.get('plugin_ctrl', False):
-        controllers.append(plugin_ctrl)
-
-    display_ctrl = DisplayCtrl(thread_event, refresh_event, config)
-    if config.general.get('display_ctrl', True):
-        controllers.append(display_ctrl)
-    
-    if config.general.get('projectm_ctrl', True):
-        projectM_ctrl = ProjectMCtrl(thread_event, refresh_event, config, audio_ctrl, display_ctrl)
-        controllers.append(projectM_ctrl)
-
-    for controller in controllers:
-        controller.start()
-    
-    while not sm.exit:
-        try:      
-            if thread_event.is_set():
-                break
-
-            time.sleep(1)
-        except KeyboardInterrupt:
-            log.warning('User initiated keyboard exit')
-            break
-        except:
-            log.exception('projectMAR failed!')
-            
-    log.info('Closing down all threads/processes...')
-    if not thread_event.is_set():
-        thread_event.set()
+class ProjectMAR:
+    def __init__(self, config):
+        self.config         = config
+        self.thread_event   = Event()
+        self.refresh_event  = Event()
+        self.ctrl_threads   = list()
         
-    for controller in controllers:
-        controller.join()
-        controller.close()
+        config_path = os.path.join(APP_ROOT, 'conf', 'projectMSDL.conf')
+        self.projectm_config = Config(config_path)
+        
+        log.info('Initializing projectMAR System Control in {0} mode...'.format(
+            config.audio_ctrl.get('audio_mode', 'automatic')
+            ))
+
+        plugin_ctrl = PluginCtrl(self.thread_event, self.config)
+        if config.general.get('plugin_ctrl', False):
+            self.ctrl_threads.append(plugin_ctrl)
+
+        display_ctrl = DisplayCtrl(self.thread_event, self.refresh_event, self.config)
+        if config.general.get('display_ctrl', True):
+            self.ctrl_threads.append(display_ctrl)
+
+    def run(self):
+
+        try:
+            rendering_loop = RenderingLoop(self.config, self.projectm_config.projectm, self.thread_event)
+
+            for controller in self.ctrl_threads:
+                controller.start()
+
+            rendering_loop.run()
+        except:
+            log.exception('Failed to run rendering loop')
+
+    def close(self):
+        log.info('Closing down all threads/processes...')
+        if not self.thread_event.is_set():
+            self.thread_event.set()
+        
+        for controller in self.ctrl_threads:
+            controller.join()
+            controller.close()
             
-    log.info('Exiting ProjectMAR!')
-    sys.exit(0)
+        log.info('Exiting ProjectMAR!')
 
 """Parse command line arguments for the projectMAR system control"""
 def parse_args():
@@ -113,7 +92,7 @@ if __name__ == "__main__":
         if not os.path.exists(diag_path):
             os.makedirs(diag_path)
 
-        audio = AudioCtrl(None, config)
+        audio = AudioManager(config)
         audio_data = dict()
         for cat, data in audio.get_raw_diagnostics():
             if not audio_data.get(cat):
@@ -143,4 +122,6 @@ if __name__ == "__main__":
         display.close()
         sys.exit(0)
 
-    main(config)
+    pm = ProjectMAR(config)
+    pm.run()
+    pm.close()

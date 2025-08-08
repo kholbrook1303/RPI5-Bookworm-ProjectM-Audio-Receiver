@@ -1,30 +1,28 @@
-import logging
+﻿import logging
 import os
-import pyudev
-import threading
-import time
 import re
+import time
 
 from pulsectl import Pulse, PulseVolumeInfo
 from pulsectl.pulsectl import PulseOperationFailed
 
-from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
 from lib.constants import DeviceCatalog, PluginDevice
+from lib.common import execute
 
-log = logging.getLogger('AudioCtrl')
+log = logging.getLogger()
 
-class AudioCtrl(Controller, threading.Thread):
+PROJECTM_MONO = 1
+PROJECTM_STEREO = 2
+
+
+class AudioManager:
     """Controller for managing PulseAudio devices and profiles.
     @param thread_event: Event to signal when the thread should stop.
     @param config: Configuration object containing audio settings.
     """
-    def __init__(self, thread_event, config):
-        super().__init__(thread_event)
-        threading.Thread.__init__(self)
-        
+    def __init__(self, config):
         self.config = config
-        self.thread_event = thread_event
         
         self.audio_mode             = self.config.audio_ctrl.get('audio_mode', 'automatic')
         self.io_device_mode         = self.config.audio_ctrl.get('io_device_mode', 'aux')
@@ -46,7 +44,7 @@ class AudioCtrl(Controller, threading.Thread):
         self.combined_sink_devices  = list()
         
         self.devices                = DeviceCatalog()
-        self.bluetoothCtrl          = BluetoothCtrl(thread_event)
+        self.bluetoothCtrl          = BluetoothManager()
 
         self.pulse = Pulse()
 
@@ -59,7 +57,7 @@ class AudioCtrl(Controller, threading.Thread):
 
         # Set null sink monitor as default
         self.pulse.source_default_set('platform-project_mar.stereo.monitor')
-
+        
     """Get raw diagnostic information from PulseAudio"""
     def get_raw_diagnostics(self):
         """Yield diagnostic information for sinks, sources, modules, etc"""
@@ -124,7 +122,7 @@ class AudioCtrl(Controller, threading.Thread):
     """Get modules by name from PulseAudio.
     @param module_name: The name of the module to search for.
     """
-    def get_modules(self, module_name):
+    def get_modules(self, module_name=None):
         modules = list()
         
         for module in self.pulse.module_list():
@@ -165,11 +163,92 @@ class AudioCtrl(Controller, threading.Thread):
                 log.info('Unloading loopback module {}'.format(module.name))
                 self.pulse.module_unload(module.index)
 
+    def sink_busy(self, sink_name):
+        try:
+            sink = self.pulse.get_sink_by_name(sink_name)
+            sink_inputs = self.pulse.sink_input_list()
+            for inp in sink_inputs:
+                if inp.sink == sink.index:
+                    log.warning(f'Something is actively using {sink_name}')
+                    return True  # Something is actively using this sink
+        except:
+            pass
+
+        return False
+
+    def route_input_to_output_via_null_sink(self, source_name, sink_name):
+        null_sink_name = sink_name.split('.', 1)[0] + '_null_sink'
+        null_sink_monitor = f"{null_sink_name}.monitor"
+
+        # Step 1: Ensure null sink is loaded
+        # if not self.module_loaded("module-null-sink"):
+        self.pulse.module_load('module-null-sink', [
+            f'sink_name={null_sink_name}',
+            'sink_properties=device.description=ProjectMAR-Sink-Monitor'
+        ])
+        log.info(f"Loaded null sink: {null_sink_name}")
+        # else:
+        #     log.debug("Null sink already loaded")
+
+        # Step 2: Route input → null sink
+        if not self.loopback_exists(source_name, null_sink_name):
+            self.load_loopback_module(source_name, null_sink_name)
+            log.info(f"Routed {source_name} → {null_sink_name}")
+
+        # Step 3: Route null sink → hardware output sink
+        if not self.loopback_exists(null_sink_monitor, sink_name):
+            self.load_loopback_module(null_sink_monitor, sink_name)
+            log.info(f"Routed {null_sink_monitor} → {sink_name}")
+
+
+    def same_card(self, source_name, sink_name):
+        try:
+            source = self.pulse.get_source_by_name(source_name)
+            sink = self.pulse.get_sink_by_name(sink_name)
+
+            src_card = source.proplist.get('alsa.card')
+            sink_card = sink.proplist.get('alsa.card')
+
+            return src_card and sink_card and src_card == sink_card
+        except Exception:
+            return False
+
+    def loopback_exists(self, source_name, sink_name):
+        for module in self.get_modules('module-loopback'):
+            if module.args.get('source') == source_name and module.args.get('sink') == sink_name:
+                return True
+
+        return False
+
+    def loopback_params_are_valid(self, source_name, sink_name):
+        sources = [s.name for s in self.pulse.source_list()]
+        sinks = [s.name for s in self.pulse.sink_list()]
+        return source_name in sources and sink_name in sinks
+
     """Load a loopback module for a specific source and sink.
     @param source_name: The name of the source to load the loopback module for.
     @param sink_name: The name of the sink to load the loopback module for.
     """
     def load_loopback_module(self, source_name, sink_name):
+        # if self.same_card(source_name, sink_name):
+        #     log.warning(f'Unable to route {source_name} to {sink_name} as they belong to the same card');
+        #     return
+
+        #self.stop_audio_stream()
+
+        # log.info('Loading module-loopback for source {} sink {}'.format(source_name, sink_name))
+        # if self.loopback_params_are_valid(source_name, sink_name):
+        #     self.pulse.module_load('module-loopback', [
+        #         'source=' + source_name,
+        #         'sink=' + sink_name,
+        #         'latency_msec=20',
+        #         'source_dont_move=true',
+        #         'sink_dont_move=true'
+        #         ])
+        # else:
+        #     log.warning(f"Invalid loopback parameters: source={source_name}, sink={sink_name} — skipping")
+        #self.create_audio_stream()
+
         log.info('Loading module-loopback for source {} sink {}'.format(source_name, sink_name))
         self.pulse.module_load('module-loopback', [
             'source=' + source_name,
@@ -263,19 +342,12 @@ class AudioCtrl(Controller, threading.Thread):
 
     """Update connected Bluetooth devices"""
     def update_bluetooth_devices(self):
-        bluetooth_devices = [
-            PluginDevice(device_name, mac_address)
-            for mac_address, device_name in self.bluetoothCtrl.get_connected_devices()
-        ]
-        for source in bluetooth_devices:
-            source.device = 'bluetooth'
+        bluetooth_devices = list()
 
-        # bluetooth_devices = list()
-
-        # for mac_address, device_name in self.bluetoothCtrl.get_connected_devices():
-        #     bluetooth_device = PluginDevice(device_name, mac_address)
-        #     bluetooth_device.device = 'bluetooth'
-        #     bluetooth_devices.append(bluetooth_device)
+        for mac_address, device_name in self.bluetoothCtrl.get_connected_devices():
+            bluetooth_device = PluginDevice(device_name, mac_address)
+            bluetooth_device.device = 'bluetooth'
+            bluetooth_devices.append(bluetooth_device)
             
         # Check for any disconnected bluetooth devices
         for bluetooth_name in list(self.devices.bluetooth_devices):
@@ -459,6 +531,12 @@ class AudioCtrl(Controller, threading.Thread):
             if source.name.startswith('alsa_output'):
                 loopback_modules = self.get_modules('module-loopback')
                 if not any(lm.args['source'] == source.name and lm.args['sink'] == self.ar_sink for lm in loopback_modules):
+                    # if self.same_card(source.name, self.ar_sink):
+                    #     log.info(f"Routing {source.name} -> {self.ar_sink} via null sink (same card)")
+                    #     self.route_input_to_output_via_null_sink(source.name, self.ar_sink)
+                    # else:
+                    #     self.load_loopback_module(source.name, self.ar_sink)
+
                     self.load_loopback_module(source.name, self.ar_sink)
 
                 log.debug('Source device: {} is not supported'.format(source.name))
@@ -524,10 +602,20 @@ class AudioCtrl(Controller, threading.Thread):
                 for sink in self.devices.sink_devices.values():
                     if not sink.active:
                         continue
-                
+                       
+                    # if self.same_card(source_device.name, sink.name):
+                    #     log.info(f"Routing {source_device.name} -> {sink.name} via null sink (same card)")
+                    #     self.route_input_to_output_via_null_sink(source_device.name, sink.name)
+                    # else:
+                    #     self.load_loopback_module(source_device.name, sink.name)
                     self.load_loopback_module(source_device.name, sink.name)
 
             elif self.sink_device and source_device.type == 'mic':
+                # if self.same_card(source_device.name, self.ar_sink):
+                #     log.info(f"Routing {source_device.name} -> {self.ar_sink} via null sink (same card)")
+                #     self.route_input_to_output_via_null_sink(source_device.name, self.ar_sink)
+                # else:
+                #     self.load_loopback_module(source_device.name, self.ar_sink)
                 self.load_loopback_module(source_device.name, self.ar_sink)
 
     """Get supported source devices based on the audio mode"""
@@ -755,7 +843,7 @@ class AudioCtrl(Controller, threading.Thread):
 
         self.update_source_devices()
         self.update_bluetooth_devices()
-        self.update_plugin_devices()
+        #self.update_plugin_devices()
 
         active_sources = list()
         for source_device in self.devices.source_devices.values():
@@ -792,17 +880,11 @@ class AudioCtrl(Controller, threading.Thread):
             if plugin_device.active:
                 continue
 
-            self.control_plugin_device(plugin_device, 1.0)
+            #self.control_plugin_device(plugin_device, 1.0)
             plugin_device.active = True
 
     """Run the audio controller thread to handle PulseAudio devices"""
     def run(self):
-        if self.audio_listener_enabled:
-            log.info('Audio listener enabled, starting PhysicalMediaCtrl thread...')
-            self.audio_listener_thread = PhysicalMediaCtrl(self.thread_event, self.config)
-
-            self.audio_listener_thread.start()
-
         while not self.thread_event.is_set():
             try:
                 self.handle_devices()
@@ -817,8 +899,28 @@ class AudioCtrl(Controller, threading.Thread):
             finally:
                 time.sleep(2)
 
+    def reconnect(self):
+        self.sink_device            = None
+        self.source_device          = None
+        self.combined_sink_devices  = list()
+        
+        self.devices                = DeviceCatalog()
+        self.pulse                  = Pulse() 
+
+        # Load null sink
+        self.ar_sink = 'platform-project_mar.stereo'
+        self.pulse.module_load('module-null-sink', [
+            'sink_name=' + self.ar_sink,
+            'sink_properties=device.description=ProjectMAR-Sink-Monitor'
+            ])
+
+        # Set null sink monitor as default
+        self.pulse.source_default_set('platform-project_mar.stereo.monitor')
+
     """Close the PulseAudio connection and unload modules"""
     def close(self):
+        # self.stop_audio_stream()
+
         if self.audio_listener_thread:
             self.audio_listener_thread.join()
             self.audio_listener_thread.close()
@@ -835,18 +937,16 @@ class AudioCtrl(Controller, threading.Thread):
         self.unload_combined_sink_modules()
 
         self.pulse.close()
-
-        self._close()
-
-class BluetoothCtrl(Controller):
+        
+class BluetoothManager:
     """Controller for managing Bluetooth devices"""
-    def __init__(self, thread_event):
-        super().__init__(thread_event)
+    def __init__(self):
+        pass
         
     """Get connected Bluetooth devices using bluetoothctl"""
     def get_connected_devices(self):
-        bluetoothctl =  self._execute('bluetoothctl', 'bluetoothctl', ['bluetoothctl', 'devices', 'Connected'])
-        for line in self._read_stream(bluetoothctl.process.stdout):
+        bluetoothctl =  execute('bluetoothctl', 'bluetoothctl', ['bluetoothctl', 'devices', 'Connected'])
+        for line in iter(bluetoothctl.process.stdout.readline, ''):
             log.debug('bluetoothctl output: {}'.format(line))
             match = re.match(r'^Device\s(?P<mac_address>.*?)\s(?P<device>.*?)$', line)
             if match:
@@ -873,154 +973,3 @@ class BluetoothCtrl(Controller):
     def disconnect_device(self, source_device):
         log.info('Disconnecting bluetooth device: {}'.format(source_device.name))
         self._execute_managed(['bluetoothctl', 'disconnect', source_device.mac_address])
-
-class PhysicalMediaCtrl(Controller, threading.Thread):
-    """Controller for managing physical media audio listeners such as USB and local directories.
-    @param thread_event: Event to signal when the thread should stop.
-    @param config: Configuration object containing audio settings.
-    """
-    def __init__(self, thread_event, config):
-        super().__init__(thread_event)
-        threading.Thread.__init__(self)
-
-        self.config = config
-        
-        self.audio_listener_mode    = self.config.audio_ctrl.get('audio_listener_mode', 'usb')
-        self.audio_listener_random  = self.config.audio_ctrl.get('audio_listener_random', True)
-
-        self.usb_listener_enabled    = self.config.audio_ctrl.get('usb_listener_enabled', False)
-        self.local_listener_enabled = self.config.audio_ctrl.get('local_listener_enabled', False)
-
-        self.local_listener_path          = self.config.audio_ctrl.get('local_listener_path')
-
-        self.process_attributes     = None
-        self.output_thread          = None
-        self.output_thread_event    = threading.Event()
-
-        # Create a udev context
-        self.context = pyudev.Context()
-
-        # Create a monitor for device events
-        self.monitor = pyudev.Monitor.from_netlink(self.context)
-
-        # Filter events to only include 'usb' subsystem
-        self.monitor.filter_by(subsystem='usb')
-
-    """Returns a count of files in the local listener path"""
-    def get_local_listener_file_count(self):
-        file_count = 0
-        for root, dirs, files in os.walk(self.local_listener_path):
-            file_count += len(files)
-
-        return file_count
-
-    """Monitor the output of the CVLC process.
-    @param output_stream: The output stream of the CVLC process.
-    @param log_level: The logging level to use for output messages.
-    """
-    def monitor_clvc_output(self, output_stream, log_level):
-        while not self.output_thread_event.is_set() and not self._thread_event.is_set():
-            line = next(self._read_stream(output_stream), None)
-            if line is None:
-                break
-            log.log(log_level, 'CVLC Output: {}'.format(line))
-
-    """Execute the CVLC process to play media from the listener path
-    @param listener_path: The path to the media files to play.
-    """
-    def execute_clvc(self, listener_path):
-        process_args = ['/usr/bin/cvlc', listener_path, '--recursive', 'expand', '--loop', '--aout=pulse']
-        if self.audio_listener_random:
-            process_args.append('--random')
-
-        if self.process_attributes:
-            self.terminate_cvlc()
-
-        self.process_attributes = self._execute('VLCMediaPlayer', '/usr/bin/cvlc', process_args)
-
-        self.output_thread = threading.Thread(
-            target=self.monitor_clvc_output,
-            args=(self.process_attributes.process.stderr, logging.DEBUG)
-            )
-
-        self.output_thread.start()
-
-    """Terminate the CVLC process and clean up resources"""
-    def terminate_cvlc(self):
-        if self.process_attributes and self.process_attributes.process:
-            try:
-                self.process_attributes.process.terminate()
-                self.process_attributes = None
-            except Exception as e:
-                log.error(f"Error terminating VLC process: {e}")
-
-        if self.output_thread and self.output_thread.is_alive():
-            self.output_thread_event.set()
-            self.output_thread.join()
-
-    """Run the local or USB audio listener based on the configured mode"""
-    def run(self):
-        if self.audio_listener_mode == 'usb' and self.usb_listener_enabled:
-            log.info('USB listener enabled, starting CVLC process...')
-            listener_path = '/media'
-            usb_storage_devices = [
-                device for device in self.context.list_devices(subsystem='block', DEVTYPE='disk')
-                if device.attributes.asstring('removable') == '1'
-            ]
-
-            if len(usb_storage_devices) > 0:
-                self.execute_clvc(listener_path)
-            try:
-                while not self._thread_event.is_set():
-                    device = self.monitor.poll(timeout=1)
-                    if device is None:
-                        continue
-
-                    if device.get('SUBSYSTEM') == 'block' and device.get('DEVTYPE') == 'disk':
-                        if device.action == 'add':
-                            log.info(f"USB device connected: {device.device_node} ({device.sys_name} starting CVLC process")
-                            time.sleep(1)   # Wait for the device to be ready
-
-                            self.execute_clvc(listener_path)
-
-                        elif device.action == 'remove':
-                            log.warning(f"USB device disconnected: {device.device_node} ({device.sys_name} stopping CVLC process")
-                            self.terminate_cvlc()
-
-            except Exception as e:
-                print(f"An error occurred: {e}")
-
-        elif self.audio_listener_mode == 'local' and self.local_listener_enabled:
-
-            user_env = os.getenv('USER')
-            if self.local_listener_path == '':
-                self.local_listener_path = '/home/' + user_env + '/Music'
-
-            log.info(f'Local listener enabled, starting CVLC process listening to {self.local_listener_path}...')
-            
-            self.execute_clvc(self.local_listener_path)
-
-            file_count = self.get_local_listener_file_count()
-            while not self._thread_event.is_set():
-                current_file_count = self.get_local_listener_file_count()
-                if current_file_count != file_count:
-                    log.info('Local listener file count changed, restarting CVLC for rescan...')
-                    self.terminate_cvlc()
-
-                    if current_file_count > 0:
-                        self.execute_clvc(self.local_listener_path)
-
-                    file_count = current_file_count
-
-                time.sleep(1)
-
-        else:
-            log.error('Invalid audio listener mode configured: {}'.format(self.audio_listener_mode))
-            return
-
-    """Close the physical media controller and clean up resources"""
-    def close(self):
-        log.info('Closing PhysicalMediaCtrl...')
-        self.terminate_cvlc()
-
-        return self._close()

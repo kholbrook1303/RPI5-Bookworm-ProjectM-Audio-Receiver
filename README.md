@@ -5,19 +5,13 @@
 ### In this latest update:
 ***Note:** If you are not up-to-date, you may find that there are drastic differences in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
 
-- ProjectMAR Installer has been completely rewritten to include various installation modes, set optimal configurations, install and configure plugins, and uninstall.  If an existing configuration exists for projectMAR (Due to performing an update), the existing configurations will remain.  Future updates will hopefully be handled by the installer as new configurations are added.
-
-- ProjectMSDL refresh feature.  Anytime the resolution is changed while running, projectMSDL will be reset to accommodate the new display.  This was an issue I observed where projectMSDL would crash when switching through various inputs on an AV receiver.
-
-- Minor fixes and improvements
-
-### Recently there have been many improvements:
-
-- Added support for Raspberry Pi 4.  RPI4 has to run at reduced resolutions as well as reduced FPS due to the graphics limitations.  Installer script has been updated to accomodate this.
-
-- Added support for composite video per a user request to support composite for old CRT setups for more of a retro feel.
-
-- Resolved an issue with the installer not handling a apt prompt.
+ - All new native SDL frontend that handles both graphic rendering and PCM audio data forwarding to libprojectM (Initial Release).
+   - frontend-sdl-cpp and linPoco are no longer required
+   - uinput used to simulate keypresses when presets stall is no longer required (SDL handles inputs unless your onn Raspberry Pi OS lite which will leverage evdev to send keyboard events to SDL event queue)
+   - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive
+   - All configurations/presets/textures are now moved back to the projectMAR folder
+   - projectM configurations are now located in /opt/ProjectMAR/conf/projectMSDL.conf
+ - AudioCtrl (Pulseaudio management) has been moved from the controller and is handled in the main rendering loop.
 
 ## What is this?
 The ProjectM Audio Receiver will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
@@ -128,22 +122,22 @@ Usage: install.sh [-m <value>] [-p <value>]
 
 #### Minimal Installation
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m minimal
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m minimal
 ```
 
 #### Optimized Installation with Startup
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m optimized -a
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m optimized -a
 ```
 
 #### Optimized Installation with Startup and plugins
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m optimized -a -p a2dp,shairport-sync,spotifyd,plexamp
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m optimized -a -p a2dp,shairport-sync,spotifyd,plexamp
 ```
 
 #### Uninstall
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m uninstall
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m uninstall
 ```
 
 <i><b>Note:</b> Once the script has completed the system will be rebooted.  
@@ -157,7 +151,7 @@ If you enabled autostart on the installer the system should come up ready to go,
 
   Lets add a directory to store our builds so we dont clutter the home directory
   ```
-  mkdir -P /tmp/Builds
+  mkdir -p /tmp/Builds
   ```
 
   ### Building ProjectM and Dependencies
@@ -188,85 +182,17 @@ If you enabled autostart on the installer the system should come up ready to go,
   </details>
 
   <details>
-  <summary><b>Building libPoco</b></summary>
-
-  ### Download/extract/build libPoco-dev
-  Because the current repository contains a problematic version of libPoco-dev, we must build from source.
-
-  Obtain a tested working build of libPoco-dev and build.  ***Note:** This is going to take some time to install*
-  ```
-  cd /tmp/Builds
-  wget https://github.com/pocoproject/poco/archive/refs/tags/poco-1.12.5p2-release.tar.gz
-  tar xf poco-1.12.5p2-release.tar.gz
-  cd poco-poco-1.12.5p2-release/
-  mkdir cmake-build
-  cd cmake-build
-  cmake ..
-  cmake --build . --config Release
-  sudo cmake --build . --target install
-  ```
-
-  You will have to move the libs for projectMSDL frontend to work
-  ```
-  sudo cp /usr/local/lib/libPoco* /usr/lib/
-  ```
-
-  </details>
-
-  <details>
-  <summary><b>Building frontend-sdl2</b></summary>
-
-  ### Install the dependencies
-  Get the mandatory packages:
-  ```
-  sudo apt install libsdl2-dev libfreetype-dev cmake
-  ```
-
-  ### Download/build frontend-sdl2
-
-  ```
-  cd /tmp/Builds
-  git clone https://github.com/kholbrook1303/frontend-sdl2.git
-  cd frontend-sdl2/
-  git submodule init
-  git submodule update
-  mkdir cmake-build
-  cmake -S . -B cmake-build -DCMAKE_BUILD_TYPE=Release
-  cmake --build cmake-build --config Release
-  cd cmake-build
-  make
-  ```
-
-  Copy build application to standard directory (Make sure you replace $GROUP:$USER with the appropriate user and group)
-  ```
-  sudo mkdir /opt/ProjectMSDL
-  sudo cp -r /tmp/Builds/frontend-sdl2/cmake-build/src/projectMSDL /opt/ProjectMSDL/
-  sudo cp -r /tmp/Builds/frontend-sdl2/cmake-build/src/projectMSDL.properties /opt/ProjectMSDL/
-  sudo chown $GROUP:$USER /opt/ProjectMSDL/ -R
-  sudo chmod 777 -R /opt/ProjectMSDL
-  ```
-  
-  ### Force the Open GL version
-
-  Open the '/etc/environment' file to set environment variables
-  ```
-  sudo nano /etc/environment
-  ```
-
-  Add the following entry
-  ```
-  MESA_GL_VERSION_OVERRIDE=4.5
-  ```
-
-  </details>
-
-  <details>
   <summary><b>Installing ProjectMAR</b></summary>
 
   ### Install the dependencies
-  Install pulseaudio sound server
+  Install ProjectMAR dependencies
   ```
-  sudo apt install pulseaudio
+  sudo apt install pulseaudio python3-dev gcc
+  ```
+
+  Ensure that your account has permissions to input
+  ```
+  sudo usermod -aG input $USER
   ```
 
   Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
@@ -295,57 +221,16 @@ If you enabled autostart on the installer the system should come up ready to go,
   /opt/ProjectMAR/env/bin/python3 -m pip install -r requirements.txt
   ```
 
-  ### Build additional python dependencies
-  <i><b>Note: </b>This section is not necessary if you choose not to leverage this feature.  This feature is solely to avoid a bug in projectM that causes the preset to get stuck.</i>
+  ### Force the Open GL version
 
-  It has been observed that presets can persist (hang) despite the projectM.displayDuration setting in projectMSDL.properties.  Because of this we are going to install uinput to handle keyboard automation to goto the next preset.
-
-  Build and install python-uinput
+  Open the '/etc/environment' file to set environment variables
   ```
-  wget https://github.com/pyinput/python-uinput/archive/refs/tags/1.0.1.tar.gz
-  tar xf 1.0.1.tar.gz
-  cd python-uinput-1.0.1/
-  /opt/ProjectMAR/env/bin/python3 setup.py build
-  /opt/ProjectMAR/env/bin/python3 setup.py install
+  sudo nano /etc/environment
   ```
 
-  Add you user to a new uinput group for secure access (Make sure you replace $USER with the appropriate user)
+  Add the following entry
   ```
-  sudo addgroup uinput
-  sudo usermod -a -G uinput $USER
-  sudo chown :uinput /dev/uinput
-  sudo chmod 660 /dev/uinput
-  ```
-
-  Create a new udev rule to allow access to the new group using the following command
-  ```
-  sudo nano /etc/udev/rules.d/99-uinput.rules
-  ```
-
-  Add the rule
-  ```
-  KERNEL=="uinput", MODE="0660", GROUP="uinput"
-  ```
-
-  Reload the new rule
-  ```
-  sudo udevadm control --reload-rules
-  sudo systemctl restart udev
-  ```
-
-  Edit the modules to include an additional startup module
-  ```
-  sudo nano /etc/modules
-  ```
-
-  Add the uinput module at the end of the file
-  ```
-  uinput
-  ```
-
-  Reboot the system
-  ```
-  sudo reboot
+  MESA_GL_VERSION_OVERRIDE=4.5
   ```
 
   ## Environment Specific Startup Instructions
@@ -428,8 +313,8 @@ There are many options available to you for presets and textures.  In the follow
   mkdir -p /tmp/Builds
   cd /tmp/Builds
   git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git
-  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMSDL/ -R
-  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMSDL/ -R
+  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMAR/ -R
+  cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMAR/ -R
   ```
 
   </details>
@@ -443,14 +328,14 @@ There are many options available to you for presets and textures.  In the follow
   mkdir -p /tmp/Builds
   cd /tmp/Builds
   git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
-  cp /tmp/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMSDL/ -R
-  cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMSDL/ -R
+  cp /tmp/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMAR/ -R
+  cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMAR/ -R
   ```
 
-  Adjust /opt/ProjectMSDL/projectMSDL.properties to include the preset and texture directories
+  Adjust /opt/ProjectMAR/conf/projectMSDL.conf to include the preset and texture directories
   ```
-  projectM.presetPath = /opt/ProjectMSDL/presets
-  projectM.texturePath = /opt/ProjectMSDL/textures
+  projectM.presetPath = /opt/ProjectMAR/presets
+  projectM.texturePath = /opt/ProjectMAR/textures
   ```
 
   </details>
@@ -483,23 +368,21 @@ There are many options available to you for presets and textures.  In the follow
 ***Note:** If you ran the automated installation you already have the appropriate settings applied.  Only proceed if you would like to apply additional configurations.  I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.  Furthermore when exclusive mode is enabled but not fullscreen, you will get a cursor that can only be removed by hitting escape.  While this also sounds strange, only set the window size resolution.*
 
 
-Adjust /opt/ProjectMSDL/projectMSDL.properties to suit the Raspberry Pi.  Change the following configurations to the below:
+Adjust /opt/ProjectMAR/projectMSDL.conf to suit the Raspberry Pi.  Change the following configurations to the below:
 ```
 window.fullscreen = true
-
-window.fullscreen.exclusiveMode = true
 
 # If using a Raspberry Pi 4, ensure this is set to no more than 720x480 and the projectM.fps is set to 30
 window.width = 1280
 window.height = 720
 
-projectM.presetPath = /opt/ProjectMSDL/presets
-projectM.texturePath = /opt/ProjectMSDL/textures
+projectM.presetPath = /opt/ProjectMAR/presets
+projectM.texturePath = /opt/ProjectMAR/textures
 
 ## This setting is optional
 projectM.displayDuration = 60
 
-## This setting is optional (ProjectMAR has its own advanced shuffling that allows you to go back to previous)
+## This setting is optional
 projectM.shuffleEnabled = false
 
 projectM.meshX = 64
