@@ -144,17 +144,20 @@ install_projectmar() {
     
     appItems=("conf" "lib" "controllers" "projectMAR.py" "requirements.txt")
     for appItem in "${appItems[@]}"; do
-        if [ "$appItem" = "conf" ]; then
-            if [ -d "$PROJECTMAR_PATH/conf" ]; then
-                log "The ProjectMAR configuration path already exists in $PROJECTMAR_PATH"
-                log "Skipping over configurations"
-            else
-                log "$appItem does not exist in $PROJECTMAR_PATH"
-                cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
-            fi
-        else
-            cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
-        fi
+        cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
+
+        #if [ "$appItem" = "conf" ]; then
+        #    if [ -d "$PROJECTMAR_PATH/conf" ]; then
+        #        log "The ProjectMAR configuration path already exists in $PROJECTMAR_PATH"
+        #        log "Skipping over configurations"
+        #    else
+        #        log "$appItem does not exist in $PROJECTMAR_PATH"
+        #        cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
+        #    fi
+        #else
+        #    cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
+        #fi
+
     done
 
     # Setup textures and presets
@@ -188,9 +191,6 @@ configure_projectmar() {
         if [ $RPI_MODEL = "4" ]; then
             sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=720/"
             sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=576/"
-        elif [ $RPI_MODEL = "5" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_width.*/resolution_width=1280/"
-            sed "$PROJECTMAR_PATH/conf/projectMAR.conf" -i -e "s/^#\\?resolution_height.*/resolution_height=720/"
         fi
     fi
 }
@@ -204,17 +204,12 @@ configure_projectmsdl() {
     if [ $VIDEO_OUTPUT = "composite" ]; then
         sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
         sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 480/"
-        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 720/"
-        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 480/"
+        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 600/"
+        sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 400/"
 
         if [ $RPI_MODEL = "4" ]; then
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
-
-        elif [ $RPI_MODEL = "5" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 60/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 64/"
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
 
         fi
@@ -222,32 +217,14 @@ configure_projectmsdl() {
         if [ $RPI_MODEL = "4" ]; then
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 720/"
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 576/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 720/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 576/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 600/"
+            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 450/"
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 30/"
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 48/"
             sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
 
-        elif [ $RPI_MODEL = "5" ]; then
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.width .*/window.fullscreen.width = 1280/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.fullscreen.height .*/window.fullscreen.height = 720/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.width .*/window.width = 1280/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?window.height .*/window.height = 720/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.fps .*/projectM.fps = 60/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshX .*/projectM.meshX = 64/"
-            sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.meshY .*/projectM.meshY = 32/"
         fi
     fi
-
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.presetPath .*/projectM.presetPath = \/opt\/ProjectMAR\/presets/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.texturePath .*/projectM.texturePath = \/opt\/ProjectMAR\/textures/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.displayDuration .*/projectM.displayDuration = 60/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.shuffleEnabled .*/projectM.shuffleEnabled = true/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.transitionDuration .*/projectM.transitionDuration = 0/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.beatSensitivity .*/projectM.beatSensitivity = 2.0/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutsEnabled .*/projectM.hardCutsEnabled = true/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutDuration .*/projectM.hardCutDuration = 30/"
-    sed "$PROJECTMAR_PATH/conf/projectMSDL.conf" -i -e "s/^#\\?projectM.hardCutSensitivity .*/projectM.hardCutSensitivity = 2.0/"
 }
 
 configure_projectmar_autostart() {
