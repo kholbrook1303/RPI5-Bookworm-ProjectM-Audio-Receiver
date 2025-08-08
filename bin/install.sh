@@ -534,8 +534,7 @@ if [ -n "$INSTALLATION_MODE" ]; then
     esac
 
     if $uninstall; then
-        rm -rf "$_PROJECTM_SDL_PATH"
-        rm -rf "$_PROJECTM_AR_PATH"
+        rm -rf "$PROJECTMAR_PATH"
 
         if [ -f "/etc/systemd/user/projectm.service" ];then
             rm /etc/systemd/user/projectm.service
