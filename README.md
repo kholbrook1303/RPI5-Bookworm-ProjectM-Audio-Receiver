@@ -6,15 +6,13 @@
  - All new native SDL frontend that handles both graphic rendering and PCM audio data forwarding to libprojectM (Initial Release).
    - frontend-sdl-cpp and linPoco are no longer required
    - uinput used to simulate keypresses when presets stall is no longer required (SDL handles inputs unless your onn Raspberry Pi OS lite which will leverage evdev to send keyboard events to SDL event queue)
-   - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive (Not all keys are currently present but will be expanded in the near future; Basic functionality like previous and next preset, increase or decrease beat sensitivity, as well as application exit and windowed mode are already added)
+   - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive
    - All configurations/presets/textures are now moved back to the projectMAR folder (But are configurable)
-   - projectM configurations are now located in /opt/ProjectMAR/conf/projectMSDL.conf
- - AudioCtrl (Pulseaudio management) has been moved from the controller and is handled in the main rendering loop.
- - ProjectMAR configuration has been better labeled and some features like screenshots removed.
+   - projectM configurations are now located in the primary config /opt/ProjectMAR/conf/ProjectMAR.conf.  default out of the box will be configured for the RPI 5.  The installer will still set the appropriate resolutions for you if using a non-standard setup like RPI 4 and/or composite video.
+ - ProjectMAR configuration has been streamlined with some features like screenshots removed.
  - To better suit VDJ needs I have added a condition that will ensure presets switch within their given duration, unless the preset is locked for which it will not enforce preset duration until unlocked.
- - projectMSDL.conf will be shipped out of the box with RPI 5 recommended settings.  The installer will still set the appropriate resolutions for you if using a non-standard setup like RPI 4 and/or composite video.
 
- As always, if there is a feature you would like to see or an issue experienced, do not hesitate to reach out.  For any issues please ensure you provide your setup details so that your issue can be reproduced.
+ *As always, if there is a feature you would like to see or an issue experienced, do not hesitate to reach out.  For any issues please ensure you provide your setup details so that your issue can be reproduced.*
 
 ## What is this?
 The ProjectM Audio Receiver will enable your Raspberry Pi to project visualizations through HDMI that react to audio provided by an input device of your choosing.  
@@ -335,7 +333,7 @@ There are many options available to you for presets and textures.  In the follow
   cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMAR/ -R
   ```
 
-  Adjust /opt/ProjectMAR/conf/projectMSDL.conf to include the preset and texture directories
+  Adjust /opt/ProjectMAR/conf/projectMAR.conf to include the preset and texture directories
   ```
   projectM.presetPath = /opt/ProjectMAR/presets
   projectM.texturePath = /opt/ProjectMAR/textures
@@ -371,7 +369,7 @@ There are many options available to you for presets and textures.  In the follow
 ***Note:** If you ran the automated installation you already have the appropriate settings applied.  Only proceed if you would like to apply additional configurations.  I have performed testing of this in Desktop with the resolution set higher but with fullscreen exclusive set to 1280x720 however the performance did not improve.  Furthermore when exclusive mode is enabled but not fullscreen, you will get a cursor that can only be removed by hitting escape.  While this also sounds strange, only set the window size resolution.*
 
 
-Adjust /opt/ProjectMAR/projectMSDL.conf to suit the Raspberry Pi.  Change the following configurations to the below:
+Adjust /opt/ProjectMAR/projectMAR.conf to suit the Raspberry Pi.  Change the following configurations to the below:
 ```
 window.fullscreen = true
 
