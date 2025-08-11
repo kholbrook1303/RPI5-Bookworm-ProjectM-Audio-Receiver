@@ -2,6 +2,7 @@ import ctypes
 import logging
 import os
 import time
+import shutil
 
 import numpy as np
 
@@ -35,6 +36,8 @@ class ProjectMWrapper:
         self._playlist = None
         self._sdl_rendering = sdl_rendering
 
+        self.preset_paths = list()
+        self.texture_paths = list()
         self._current_preset = None
         self._current_preset_start = None
 
@@ -128,7 +131,6 @@ class ProjectMWrapper:
             self.projectm_playlist_lib.projectm_playlist_set_shuffle(self._playlist, self.config.projectm.get("projectm.shuffleenabled", False))
 
             texture_path_index = 0
-            texture_paths = list()
             while True:
                 config_key = 'projectm.texturepath'
                 if texture_path_index > 0:
@@ -136,24 +138,23 @@ class ProjectMWrapper:
 
                 if self.config.projectm.get(config_key, None):
                     log.info('Adding preset path {} {}'.format(config_key, self.config.projectm.get(config_key)))
-                    texture_paths.append(self.config.projectm.get(config_key))
+                    self.texture_paths.append(self.config.projectm.get(config_key))
 
                 else:
                     break
 
                 texture_path_index += 1
 
-            if texture_paths:
-                texture_path_list = [ctypes.create_string_buffer(path.encode('utf-8')) for path in texture_paths]
+            if self.texture_paths:
+                texture_path_list = [ctypes.create_string_buffer(path.encode('utf-8')) for path in self.texture_paths]
                 texture_path_array = (ctypes.POINTER(ctypes.c_char_p) * len(texture_path_list))()
 
                 for i, path in enumerate(texture_path_list):
                     texture_path_array[i] = ctypes.cast(ctypes.pointer(path), ctypes.POINTER(ctypes.c_char_p))
 
-                self.projectm_lib.projectm_set_texture_search_paths(self._projectM, texture_path_array, len(texture_paths))
+                self.projectm_lib.projectm_set_texture_search_paths(self._projectM, texture_path_array, len(self.texture_paths))
 
             preset_path_index = 0
-            preset_paths = list()
             while True:
                 config_key = 'projectm.presetpath'
                 if preset_path_index > 0:
@@ -161,14 +162,14 @@ class ProjectMWrapper:
 
                 if self.config.projectm.get(config_key, None):
                     log.info('Adding preset path {} {}'.format(config_key, self.config.projectm.get(config_key)))
-                    preset_paths.append(self.config.projectm.get(config_key))
+                    self.preset_paths.append(self.config.projectm.get(config_key))
 
                 else:
                     break
 
                 preset_path_index += 1
 
-            for preset_path in preset_paths:
+            for preset_path in self.preset_paths:
                 if os.path.isfile(preset_path):
                     self.projectm_playlist_lib.projectm_playlist_add_preset(self._playlist, preset_path.encode(), False)
                 else:
@@ -246,12 +247,29 @@ class ProjectMWrapper:
 
             log.info(f'Delete operation identified {preset_index} {preset_name}')
             self.projectm_playlist_lib.projectm_playlist_remove_preset(self._playlist, preset_index)
+            
+            try:
+                if physical and self.config.projectm.get("projectm.presetdeletebachupenabled", True):
+                    backup_path = self.config.projectm.get('projectm.presetdeletebachuppath', '/opt/ProjectMAR/preset_backup')
 
-            if physical:
-                try:
+                    match_path = None
+                    for preset_path in self.preset_paths:
+                        if preset_name.startswith(preset_path):
+                            match_path = preset_path
+                            break
+
+                    if match_path:
+                        backup_path = preset_name.replace(match_path, backup_path)
+                        backup_dir = os.path.dirname(backup_path)
+                        os.makedirs(backup_dir, exist_ok=True)
+
+                        shutil.move(preset_name, backup_path)
+
+                elif physical:
                     os.remove(preset_name)
-                except Exception as e:
-                    log.error(f'Failed to delete preset {preset_name} with error: {e}')
+
+            except Exception as e:
+                log.error(f'Failed to delete/backup preset {preset_name} with error: {e}')
 
             self.next_preset()
 

@@ -5,6 +5,7 @@ import threading
 import time
 
 from lib.abstracts import Controller
+from lib.common import execute_managed
 
 log = logging.getLogger()
 
@@ -16,8 +17,8 @@ class DisplayCtrl(Controller, threading.Thread):
 
         self.display_type   = os.environ.get('XDG_SESSION_TYPE', None)
         self.resolution     = '{}x{}'.format(
-            self._config.display_ctrl.get('resolution_width', 1280),
-            self._config.display_ctrl.get('resolution_height', 720)
+            self._config.projectm.get('window.fullscreen.width', 1280),
+            self._config.projectm.get('window.fullscreen.height', 720)
             )
 
     """Get the supported and current display configuration for X11"""
@@ -65,7 +66,7 @@ class DisplayCtrl(Controller, threading.Thread):
             res_profile = display_config['resolutions'].get(self.resolution)
             log.info('Setting resolution to {} refresh rate to {}'.format(self.resolution, max(res_profile)))
 
-            success = self._execute_managed([
+            success = execute_managed([
                 'xrandr', '--output', display_config['device'], 
                 '--mode', self.resolution, '--rate', max(res_profile)
                 ])
@@ -118,7 +119,7 @@ class DisplayCtrl(Controller, threading.Thread):
         else:
             log.info('Setting resolution to {}'.format(max(display_config['resolutions'])))
 
-            success = self._execute_managed([
+            success = execute_managed([
                 'wlr-randr', '--output', display_config['device'], 
                 '--mode', max(display_config['resolutions'])
                 ])

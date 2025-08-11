@@ -4,8 +4,8 @@
 ***Note:** If you are not up-to-date, you may find that there are drastic differences in the configurations.  Please always perform a backup of your existing configuration prior to installing the latest version.*
 
  - All new native SDL frontend that handles both graphic rendering and PCM audio data forwarding to libprojectM (Initial Release).
-   - frontend-sdl-cpp and linPoco are no longer required
-   - uinput used to simulate keypresses when presets stall is no longer required (SDL handles inputs unless your onn Raspberry Pi OS lite which will leverage evdev to send keyboard events to SDL event queue)
+   - frontend-sdl-cpp and libPoco are no longer required
+   - uinput used to simulate keypresses (when presets stall) is no longer required.  Input events are handles by SDL unless your on Raspberry Pi OS lite, which will then leverage evdev to send keyboard events to SDL event queue.
    - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive
    - All configurations/presets/textures are now moved back to the projectMAR folder (But are configurable)
    - projectM configurations are now located in the primary config /opt/ProjectMAR/conf/ProjectMAR.conf.  default out of the box will be configured for the RPI 5.  The installer will still set the appropriate resolutions for you if using a non-standard setup like RPI 4 and/or composite video.
@@ -123,22 +123,22 @@ Usage: install.sh [-m <value>] [-p <value>]
 
 #### Minimal Installation
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m minimal
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m minimal
 ```
 
 #### Optimized Installation with Startup
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m optimized -a
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m optimized -a
 ```
 
 #### Optimized Installation with Startup and plugins
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m optimized -a -p a2dp,shairport-sync,spotifyd,plexamp
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m optimized -a -p a2dp,shairport-sync,spotifyd,plexamp
 ```
 
 #### Uninstall
 ```
-curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/dev/bin/install.sh | sudo bash -s -- -m uninstall
+curl -sSL https://raw.githubusercontent.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/main/bin/install.sh | sudo bash -s -- -m uninstall
 ```
 
 <i><b>Note:</b> Once the script has completed the system will be rebooted.  

@@ -139,7 +139,7 @@ install_projectmar() {
     log "Installing ProjectMAR"
 
     # Download and configure ProjectMAR
-    git clone -b dev https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
+    git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
     mkdir -p "$PROJECTMAR_PATH"
     
     appItems=("conf" "lib" "controllers" "projectMAR.py" "requirements.txt")

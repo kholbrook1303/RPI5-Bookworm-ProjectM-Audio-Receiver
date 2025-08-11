@@ -72,26 +72,6 @@ class Controller:
 
         return process_attributes
     
-    """Execute a managed process.
-    @param args: an array of arguments including the executable
-    @param shell: specifies whether or not to run the command as shell
-    @returns a boolean indicating whether the process execution failed
-    """
-    def _execute_managed(self, args, shell=False):
-        process = Popen(args, universal_newlines=True, shell=shell)
-        stdout,stderr = process.communicate()
-        
-        if stdout:
-            log.debug('stdout: {}'.format(stdout))
-        if stderr:
-            log.error(stderr)
-            return False
-        if process.returncode != 0:
-            log.error('command {} return code: {}'.format(args, process.returncode))
-            return False
-        
-        return True
-    
     """Execute a monitored process.
     @returns a boolean indicating whether the process execution failed
     """
@@ -130,10 +110,6 @@ class Controller:
             if attr.process.poll() == None:
                 log.info('Terminating process {}'.format(process_name))
                 attr.process.kill()
-
-            # if attr.monitor_thread:
-            #     log.info('Joining monitor thread for {}'.format(process_name))
-            #     attr.monitor_thread.join()
 
         for thread_name, thread in self._threads.items():
             log.info('Joining thread {}'.format(thread_name))

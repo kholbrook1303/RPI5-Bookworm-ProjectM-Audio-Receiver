@@ -10,7 +10,7 @@ from pulsectl.pulsectl import PulseOperationFailed
 from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
 from lib.constants import DeviceCatalog, PluginDevice
-from lib.common import execute
+from lib.common import execute, execute_managed
 
 log = logging.getLogger()
 
@@ -961,18 +961,18 @@ class BluetoothManager:
     """Execute a player command for a Bluetooth device"""
     def player(self, action):
         log.info('Attempting to {} bluetooth audio'.format(action))
-        self._execute_managed(['bluetoothctl', 'player.{}'.format(action)])
+        execute_managed(['bluetoothctl', 'player.{}'.format(action)])
 
     """Connect a Bluetooth device using bluetoothctl.
     @param source_device: The PluginDevice object representing the Bluetooth device to connect.
     """
     def connect_device(self, source_device):
         log.info('Connecting bluetooth device: {}'.format(source_device.name))
-        self._execute_managed(['bluetoothctl', 'connect', source_device.mac_address])
+        execute_managed(['bluetoothctl', 'connect', source_device.mac_address])
          
     """Disconnect a Bluetooth device using bluetoothctl.
     @param source_device: The PluginDevice object representing the Bluetooth device to disconnect.
     """
     def disconnect_device(self, source_device):
         log.info('Disconnecting bluetooth device: {}'.format(source_device.name))
-        self._execute_managed(['bluetoothctl', 'disconnect', source_device.mac_address])
+        execute_managed(['bluetoothctl', 'disconnect', source_device.mac_address])
