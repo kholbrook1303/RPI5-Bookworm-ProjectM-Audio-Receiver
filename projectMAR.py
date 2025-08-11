@@ -2,80 +2,66 @@ import argparse
 import logging
 import json
 import os
-import signal
 import sys
-import time
 
-from threading import Thread, Event
+from threading import Event
 
 from lib.config import Config, APP_ROOT
+from lib.common import get_environment
 from lib.log import log_init
-from lib.controllers import AudioCtrl, DisplayCtrl, ProjectMCtrl, PluginCtrl
+
+from lib.projectM.RenderingLoop import RenderingLoop
+
+from controllers.audio import AudioCtrl
+from controllers.display import DisplayCtrl
+from controllers.plugins import PluginCtrl
 
 log = logging.getLogger()
-    
-class SignalMonitor:
-    exit = False
-    def __init__(self):
-        signal.signal(signal.SIGINT, self.set_exit)
-        signal.signal(signal.SIGTERM, self.set_exit)
 
-    def set_exit(self, signum, frame):
-        self.exit = True
+class ProjectMAR:
+    def __init__(self, config):
+        self.config         = config
+        self.thread_event   = Event()
+        self.ctrl_threads   = list()
 
-def main(config):
-    sm              = SignalMonitor()
-    thread_event    = Event()
-    refresh_event   = Event()
+    def run(self):
+        try:
+            log.info('Starting projectM rendering loop...')
+            rendering_loop = RenderingLoop(self.config, self.thread_event)
+            
+            log.info('Initializing projectMAR System Control in {0} mode...'.format(
+                self.config.audio_ctrl.get('audio_mode', 'automatic')
+                ))
 
-    log.info('Initializing projectMAR System Control in {0} mode...'.format(
-        config.audio_receiver.get('audio_mode', 'automatic')
-        ))
+            controllers = {
+                'audio_ctrl': AudioCtrl,
+                'plugin_ctrl': PluginCtrl,
+                'display_ctrl': DisplayCtrl
+                }
 
-    controllers = list()
+            for name, controller in controllers.items():
+                if self.config.general.get(name, False):
+                    handler = controller(self.thread_event, self.config)
+                    handler.start()
+                    self.ctrl_threads.append(handler)
 
-    audio_ctrl = AudioCtrl(thread_event, config)
-    if config.general.get('audio_receiver', True):
-        controllers.append(audio_ctrl)
-
-    plugin_ctrl = PluginCtrl(thread_event, config)
-    if config.general.get('audio_plugin', False):
-        controllers.append(plugin_ctrl)
-
-    display_ctrl = DisplayCtrl(thread_event, refresh_event, config)
-    if config.general.get('display_enforcement', True):
-        controllers.append(display_ctrl)
-    
-    if config.general.get('projectm', True):
-        projectM_ctrl = ProjectMCtrl(thread_event, refresh_event, config, audio_ctrl, display_ctrl)
-        controllers.append(projectM_ctrl)
-
-    for controller in controllers:
-        controller.start()
-    
-    while not sm.exit:
-        try:      
-            if thread_event.is_set():
-                break
-
-            time.sleep(1)
-        except KeyboardInterrupt:
-            log.warning('User initiated keyboard exit')
-            break
+            rendering_loop.run()
         except:
-            log.exception('projectMAR failed!')
-            
-    log.info('Closing down all threads/processes...')
-    if not thread_event.is_set():
-        thread_event.set()
-        
-    for controller in controllers:
-        controller.join()
-        controller.close()
-            
-    log.info('Exiting ProjectMAR!')
-    sys.exit(0)
+            log.exception('Failed to run rendering loop')
+            self.thread_event.set()
 
+    def close(self):
+        log.info('Closing down all threads/processes...')
+        if not self.thread_event.is_set():
+            self.thread_event.set()
+        
+        for controller in self.ctrl_threads:
+            controller.join()
+            controller.close()
+            
+        log.info('Exiting ProjectMAR!')
+
+"""Parse command line arguments for the projectMAR system control"""
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -134,4 +120,6 @@ if __name__ == "__main__":
         display.close()
         sys.exit(0)
 
-    main(config)
+    pm = ProjectMAR(config)
+    pm.run()
+    pm.close()

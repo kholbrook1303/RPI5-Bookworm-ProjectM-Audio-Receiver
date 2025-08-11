@@ -8,6 +8,7 @@ loggers = {}
 log = logging.getLogger()
 
 class JsonFormatter(logging.Formatter):
+    """Custom JSON formatter for logging messages"""
     def formatException(self, exc_info):
         result = super(JsonFormatter, self).formatException(exc_info)
         json_result = {
@@ -18,6 +19,11 @@ class JsonFormatter(logging.Formatter):
         }
         return json.dumps(json_result)
 
+"""Initialize the logging system with a JSON formatter
+@param name: the name of the logger or file to log to
+@param level: the logging level (default is DEBUG)
+@param kwargs: additional keyword arguments for configuring the logger
+"""
 def log_init(name, level=logging.DEBUG, **kwargs):
     json_formatter = JsonFormatter(
         '{"timestamp":"%(asctime)s", "level":"%(levelname)s", "Module":"%(module)s", "message":"%(message)s"}'

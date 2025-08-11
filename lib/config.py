@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 
 from configparser import ConfigParser, RawConfigParser
 
@@ -10,6 +11,10 @@ APP_ROOT = os.path.join(
     )   
 
 class Config:
+    """Configuration class for loading and managing application settings.
+    @param config_path: path to the configuration file.
+    @param config_header: optional header to prepend to the configuration file.
+    """
     def __init__(self, config_path, config_header=None):
         try:
             if config_header:
@@ -51,33 +56,34 @@ class Config:
 
         except Exception as e:
             print ("Error loading configuration file", e)
+            traceback.print_exc()
             sys.exit(-1)
         
+    """Check if string is a boolean.
+    @param value: object to be verified.
+    """
     def _is_str_bool(self, value):
-        """Check if string is an integer.
-        @param value: object to be verified.
-        """
         if value.lower() == 'true':
             return True
         elif value.lower() == 'false':
             return True
 
         return False
-
+    
+    """Check if string is an float.
+    @param value: object to be verified.
+    """
     def _is_str_float(self, value):
-        """Check if string is an float.
-        @param value: object to be verified.
-        """
         try:
             float(value)
             return True
         except:
             return False
-
+        
+    """Check if string is an integer.
+    @param value: object to be verified.
+    """
     def _is_str_int(self, value):
-        """Check if string is an integer.
-        @param value: object to be verified.
-        """
         try:
             int(value)
             return True

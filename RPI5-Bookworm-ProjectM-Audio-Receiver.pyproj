@@ -12,6 +12,7 @@
     <Name>RPI5-Bookworm-ProjectM-Audio-Receiver</Name>
     <RootNamespace>RPI5-Bookworm-ProjectM-Audio-Receiver</RootNamespace>
     <IsWindowsApplication>False</IsWindowsApplication>
+    <InterpreterId>MSBuild|env|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,11 +23,18 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="controllers\display.py" />
+    <Compile Include="controllers\plugins.py" />
     <Compile Include="lib\abstracts.py" />
+    <Compile Include="lib\common.py" />
     <Compile Include="lib\config.py" />
-    <Compile Include="lib\controllers.py" />
+    <Compile Include="lib\constants.py" />
     <Compile Include="lib\log.py" />
-    <Compile Include="presetManagement.py" />
+    <Compile Include="lib\projectM\AudioCapture.py" />
+    <Compile Include="lib\projectM\AudioCaptureImpl_SDL.py" />
+    <Compile Include="lib\projectM\ProjectMWrapper.py" />
+    <Compile Include="lib\projectM\RenderingLoop.py" />
+    <Compile Include="lib\projectM\SDLRendering.py" />
     <Compile Include="projectMAR.py" />
   </ItemGroup>
   <ItemGroup>
@@ -36,6 +44,7 @@
     <Content Include="conf\audio_sinks.conf" />
     <Content Include="conf\audio_sources.conf" />
     <Content Include="bin\install.sh" />
+    <Content Include="controllers\audio.py" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
@@ -44,6 +53,19 @@
     <Folder Include="lib\" />
     <Folder Include="conf\" />
     <Folder Include="bin\" />
+    <Folder Include="controllers\" />
+    <Folder Include="lib\projectM\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include="env\">
+      <Id>env</Id>
+      <Version>3.12</Version>
+      <Description>env (Python 3.12 (64-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
