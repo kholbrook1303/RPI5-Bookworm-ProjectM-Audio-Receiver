@@ -244,6 +244,7 @@ Restart=on-failure
 [Install]
 WantedBy=default.target
 EOF
+            systemctl --global enable projectm.service
         fi
     fi
 }
@@ -582,6 +583,15 @@ if [ -n "$INSTALLATION_MODE" ]; then
             echo -e "\nMESA_GL_VERSION_OVERRIDE=4.5" >> /etc/environment
         fi
 
+        # if lite OS enable autologin for the user
+        if ! is_desktop; then
+            mkdir -p /etc/systemd/system/getty@tty1.service.d
+            cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $SUDO_USER --noclear %I \$TERM
+EOF
+        fi
     fi
 
 else
