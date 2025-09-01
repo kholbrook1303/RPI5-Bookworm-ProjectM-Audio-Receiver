@@ -696,60 +696,7 @@ class PhysicalMediaCtrl(Controller, threading.Thread):
         self.current_file_count = 0
         self.context = pyudev.Context()
         self.monitor = pyudev.Monitor.from_netlink(self.context)
-        self.monitor.filter_by(subsystem='usb')
-
-    # """Returns a count of files in the local listener path"""
-    # def get_local_listener_file_count(self):
-    #     file_count = 0
-    #     for root, dirs, files in os.walk(self.local_listener_path):
-    #         file_count += len(files)
-
-    #     return file_count
-
-    # """Monitor the output of the CVLC process.
-    # @param output_stream: The output stream of the CVLC process.
-    # @param log_level: The logging level to use for output messages.
-    # """
-    # def monitor_clvc_output(self, output_stream, log_level):
-    #     while not self.output_thread_event.is_set() and not self._thread_event.is_set():
-    #         line = next(self._read_stream(output_stream), None)
-    #         if line is None:
-    #             break
-    #         log.log(log_level, 'CVLC Output: {}'.format(line))
-
-    # """Execute the CVLC process to play media from the listener path
-    # @param listener_path: The path to the media files to play.
-    # """
-    # def execute_clvc(self, listener_path):
-    #     process_args = ['/usr/bin/cvlc', listener_path, '--recursive', 'expand', '--loop', '--aout=pulse']
-    #     if self.audio_listener_random:
-    #         process_args.append('--random')
-
-    #     if self.process_attributes:
-    #         self.terminate_cvlc()
-
-    #     self.process_attributes = self._execute('VLCMediaPlayer', '/usr/bin/cvlc', process_args)
-
-    #     self.output_thread = threading.Thread(
-    #         target=self.monitor_clvc_output,
-    #         args=(self.process_attributes.process.stderr, logging.DEBUG)
-    #         )
-
-    #     self.output_thread.start()
-
-    # """Terminate the CVLC process and clean up resources"""
-    # def terminate_cvlc(self):
-    #     if self.process_attributes and self.process_attributes.process:
-    #         try:
-    #             self.process_attributes.process.terminate()
-    #             self.process_attributes = None
-    #         except Exception as e:
-    #             log.error(f"Error terminating VLC process: {e}")
-
-    #     if self.output_thread and self.output_thread.is_alive():
-    #         self.output_thread_event.set()
-    #         self.output_thread.join()
-    
+        self.monitor.filter_by(subsystem='usb')    
 
     def get_supported_audio_files(self, path):
         audio_files = []
