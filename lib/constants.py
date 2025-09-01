@@ -32,11 +32,11 @@ class PluginDevice:
 class DeviceCatalog:
     """Catalog for managing devices and their attributes"""
     def __init__(self):
-        self.cards                  = dict()
-        self.modules                = dict()
+        self.card                   = dict()
+        self.module                 = dict()
+        self.sink                   = dict()
+        self.source                 = dict()
         self.sink_cards             = dict()
-        self.sink_devices           = dict()
-        self.source_devices         = dict()
         self.bluetooth_devices      = dict()
         self.plugin_devices         = dict()
         self.unsupported_sinks      = dict()

@@ -1,7 +1,8 @@
 numpy==2.3.2
-pip==25.2
-pulsectl==24.12.0
+pulsectl==24.11.0
 PyOpenGL==3.1.9
 PySDL2==0.9.17
 pysdl2-dll==2.32.0
-evdev==1.9.2
+evdev==1.9.2; sys_platform == "linux"
+pyudev==0.24.3; sys_platform == "linux"
+python-vlc==3.0.21203

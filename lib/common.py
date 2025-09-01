@@ -1,3 +1,4 @@
+import ctypes.util
 import logging
 
 from subprocess import PIPE, Popen
@@ -38,17 +39,24 @@ def execute(name, path, args, shell=False):
 @param shell: specifies whether or not to run the command as shell
 @returns a boolean indicating whether the process execution failed
 """
-def execute_managed(self, args, shell=False):
-        process = Popen(args, universal_newlines=True, shell=shell)
-        stdout,stderr = process.communicate()
+def execute_managed(args, shell=False):
+    process = Popen(args, universal_newlines=True, shell=shell)
+    stdout,stderr = process.communicate()
         
-        if stdout:
-            log.debug('stdout: {}'.format(stdout))
-        if stderr:
-            log.error(stderr)
-            return False
-        if process.returncode != 0:
-            log.error('command {} return code: {}'.format(args, process.returncode))
-            return False
+    if stdout:
+        log.debug('stdout: {}'.format(stdout))
+    if stderr:
+        log.error(stderr)
+        return False
+    if process.returncode != 0:
+        log.error('command {} return code: {}'.format(args, process.returncode))
+        return False
         
-        return True
+    return True
+
+def load_library(name: str):
+    path = ctypes.util.find_library(name)
+    if not path:
+        raise Exception("Unable to load " + name)
+
+    return ctypes.cdll.LoadLibrary(path)

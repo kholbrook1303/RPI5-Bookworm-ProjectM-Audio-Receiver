@@ -5,7 +5,7 @@
 
  - All new native SDL frontend that handles both graphic rendering and PCM audio data forwarding to libprojectM (Initial Release).
    - frontend-sdl-cpp and libPoco are no longer required
-   - uinput used to simulate keypresses (when presets stall) is no longer required.  Input events are handles by SDL unless your on Raspberry Pi OS lite, which will then leverage evdev to send keyboard events to SDL event queue.
+   - uinput used to simulate keypresses (when presets stall) is no longer required.  Input events are handled by SDL unless your on Raspberry Pi OS lite, which will then leverage evdev to send keyboard events to SDL event queue.
    - Additional DEL key feature added to not only remove the preset from the playlist but also from the drive
    - All configurations/presets/textures are now moved back to the projectMAR folder (But are configurable)
    - projectM configurations are now located in the primary config /opt/ProjectMAR/conf/ProjectMAR.conf.  default out of the box will be configured for the RPI 5.  The installer will still set the appropriate resolutions for you if using a non-standard setup like RPI 4 and/or composite video.
@@ -188,7 +188,7 @@ If you enabled autostart on the installer the system should come up ready to go,
   ### Install the dependencies
   Install ProjectMAR dependencies
   ```
-  sudo apt install pulseaudio python3-dev gcc
+  sudo apt install pulseaudio python3-dev gcc vlc
   ```
 
   Ensure that your account has permissions to input

@@ -142,22 +142,9 @@ install_projectmar() {
     git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git "$TMP_BUILDS/RPI5-Bookworm-ProjectM-Audio-Receiver"
     mkdir -p "$PROJECTMAR_PATH"
     
-    appItems=("conf" "lib" "controllers" "projectMAR.py" "requirements.txt")
+    appItems=("conf" "core" "lib" "projectMAR.py" "requirements.txt")
     for appItem in "${appItems[@]}"; do
         cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
-
-        #if [ "$appItem" = "conf" ]; then
-        #    if [ -d "$PROJECTMAR_PATH/conf" ]; then
-        #        log "The ProjectMAR configuration path already exists in $PROJECTMAR_PATH"
-        #        log "Skipping over configurations"
-        #    else
-        #        log "$appItem does not exist in $PROJECTMAR_PATH"
-        #        cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
-        #    fi
-        #else
-        #    cp -r "/tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/$appItem" "$PROJECTMAR_PATH"
-        #fi
-
     done
 
     # Setup textures and presets
@@ -548,7 +535,7 @@ if [ -n "$INSTALLATION_MODE" ]; then
         # Update repositories
         apt update
         # Install package dependencies
-        apt install -y pulseaudio python3-dev gcc
+        apt install -y pulseaudio python3-dev gcc vlc
         
         # Add current user to input group for evdev device access
         sudo usermod -aG input $SUDO_USER

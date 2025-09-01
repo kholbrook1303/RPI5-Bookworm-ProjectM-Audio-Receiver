@@ -3,63 +3,46 @@ import logging
 import json
 import os
 import sys
-
-from threading import Event
+import threading
 
 from lib.config import Config, APP_ROOT
 from lib.common import get_environment
 from lib.log import log_init
 
-from lib.projectM.RenderingLoop import RenderingLoop
-
-from controllers.audio import AudioCtrl
-from controllers.display import DisplayCtrl
-from controllers.plugins import PluginCtrl
+from core.controllers.Audio import AudioCtrl
+from core.controllers.Display import DisplayCtrl
+from core.RenderingLoop import RenderingLoop
 
 log = logging.getLogger()
 
-class ProjectMAR:
-    def __init__(self, config):
-        self.config         = config
-        self.thread_event   = Event()
-        self.ctrl_threads   = list()
+def get_diagnostics():
+    diag_path = os.path.join(APP_ROOT, 'diag')
+    if not os.path.exists(diag_path):
+        os.makedirs(diag_path)
 
-    def run(self):
-        try:
-            log.info('Starting projectM rendering loop...')
-            rendering_loop = RenderingLoop(self.config, self.thread_event)
-            
-            log.info('Initializing projectMAR System Control in {0} mode...'.format(
-                self.config.audio_ctrl.get('audio_mode', 'automatic')
-                ))
+    audio = AudioCtrl(None, config)
+    audio_data = dict()
+    for cat, data in audio.get_raw_diagnostics():
+        if not audio_data.get(cat):
+            audio_data[cat] = [data]
+        else:
+            audio_data[cat].append(data)
 
-            controllers = {
-                'audio_ctrl': AudioCtrl,
-                'plugin_ctrl': PluginCtrl,
-                'display_ctrl': DisplayCtrl
-                }
+    audio_json = os.path.join(diag_path, 'raw_audio.json')
+    with open(audio_json, 'w') as outfile:
+        outfile.write(json.dumps(audio_data, indent=2, default=str))
 
-            for name, controller in controllers.items():
-                if self.config.general.get(name, False):
-                    handler = controller(self.thread_event, self.config)
-                    handler.start()
-                    self.ctrl_threads.append(handler)
+    audio.close()
 
-            rendering_loop.run()
-        except:
-            log.exception('Failed to run rendering loop')
-            self.thread_event.set()
+    display = DisplayCtrl(None, config)
+    if display._environment == 'desktop':
+        display_data = display.get_diagnostics()
 
-    def close(self):
-        log.info('Closing down all threads/processes...')
-        if not self.thread_event.is_set():
-            self.thread_event.set()
-        
-        for controller in self.ctrl_threads:
-            controller.join()
-            controller.close()
-            
-        log.info('Exiting ProjectMAR!')
+        display_json = os.path.join(diag_path, 'display.json')
+        with open(display_json, 'w') as outfile:
+            outfile.write(json.dumps(display_data, indent=2, default=str))
+
+    display.close()
 
 """Parse command line arguments for the projectMAR system control"""
 def parse_args():
@@ -85,41 +68,19 @@ if __name__ == "__main__":
     log_init(logpath, log_level)
     log_init('console', log_level)
 
+    thread_event = threading.Event()
+
     if args.diag:
-        diag_path = os.path.join(APP_ROOT, 'diag')
-        if not os.path.exists(diag_path):
-            os.makedirs(diag_path)
+        get_diagnostics()
 
-        audio = AudioCtrl(None, config)
-        audio_data = dict()
-        for cat, data in audio.get_raw_diagnostics():
-            if not audio_data.get(cat):
-                audio_data[cat] = [data]
-            else:
-                audio_data[cat].append(data)
+    else:
+        app = RenderingLoop(config, thread_event)
 
-        audio_json = os.path.join(diag_path, 'raw_audio.json')
-        with open(audio_json, 'w') as outfile:
-            outfile.write(json.dumps(audio_data, indent=2, default=str))
+        try:
+            app.run()
+        except:
+            log.exception('Fatal error running projectMAR!')
+        finally:
+            del app
 
-        audio_devices = audio.get_device_diagnostics()
-        audio_devices_json = os.path.join(diag_path, 'audio_devices.json')
-        with open(audio_devices_json, 'w') as outfile:
-            outfile.write(json.dumps(audio_data, indent=2, default=str))
-
-        audio.close()
-
-        display = DisplayCtrl(None, config)
-        if display._environment == 'desktop':
-            display_data = display.get_diagnostics()
-
-            display_json = os.path.join(diag_path, 'display.json')
-            with open(display_json, 'w') as outfile:
-                outfile.write(json.dumps(display_data, indent=2, default=str))
-
-        display.close()
-        sys.exit(0)
-
-    pm = ProjectMAR(config)
-    pm.run()
-    pm.close()
+    sys.exit(0)
