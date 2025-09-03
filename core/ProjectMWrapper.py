@@ -292,7 +292,7 @@ class ProjectMWrapper:
         if preset_index:
             preset_name = self.get_preset_item(preset_index)
 
-            log.info(f'Delete operation identified {preset_index} {preset_name}')
+            log.info(f'User has requested to delete preset {preset_name} with index {preset_index}')
             self.projectm_playlist_lib.projectm_playlist_remove_preset(self.projectm_playlist, preset_index)
             
             try:
@@ -338,13 +338,19 @@ class ProjectMWrapper:
     def get_preset_locked(self):
         return self.projectm_lib.projectm_get_preset_locked(self.projectm)
 
-    def lock_preset(self, locked):
-        self.projectm_lib.projectm_set_preset_locked(self.projectm, locked)
+    def toggle_preset_lock(self):
+        locked = self.get_preset_locked()
+        if locked:
+            log.debug(f'User has requested to unlock the presets')
+            self.projectm_wrapper.lock_preset(False)
+        else:
+            log.debug(f'User has requested to lock the presets')
+            self.projectm_wrapper.lock_preset(True)
 
     def change_beat_sensitivity(self, value):
         current = self.projectm_lib.projectm_get_beat_sensitivity(self.projectm)
         self.projectm_lib.projectm_set_beat_sensitivity(self.projectm, current + value)
-        log.info(f"User has changed the Beat Sensitivity to: {self.projectm_lib.projectm_get_beat_sensitivity(self.projectm):.2f}")
+        log.debug(f"User has changed the Beat Sensitivity to: {self.projectm_lib.projectm_get_beat_sensitivity(self.projectm):.2f}")
 
     def set_window_size(self, canvas_width, canvas_height):
         self.projectm_lib.projectm_set_window_size(self.projectm, canvas_width, canvas_height)

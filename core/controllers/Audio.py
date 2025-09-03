@@ -28,9 +28,6 @@ class AudioCtrl(Controller, threading.Thread):
         self.audio_mode             = self._config.audio_ctrl.get('audio_mode', 'automatic')
         self.io_device_mode         = self._config.audio_ctrl.get('io_device_mode', 'aux')
 
-        self.audio_listener_thread  = None
-        self.audio_listener_enabled = self._config.audio_ctrl.get('audio_listener_enabled', True)
-
         self.sink_device            = None
         self.source_device          = None
         self.sink_devices           = list()
@@ -44,6 +41,7 @@ class AudioCtrl(Controller, threading.Thread):
         self.supported_sinks = self.load_audio_config(config_path, 'audio_sinks.conf')
         self.supported_sources = self.load_audio_config(config_path, 'audio_sources.conf')
 
+        self.setup_devices()
 
     """Load audio configuration from a specified path and file.
     @param config_path: The path to the configuration directory.
@@ -566,8 +564,6 @@ class AudioCtrl(Controller, threading.Thread):
 
     """Run the audio controller thread to handle PulseAudio devices"""
     def run(self):
-        self.setup_devices()
-
         while not self._thread_event.is_set():
             try:
                 log.info('starting new pulse audio event listener...')
@@ -578,18 +574,13 @@ class AudioCtrl(Controller, threading.Thread):
                     while not self._thread_event.is_set():
                         pulse.event_listen(timeout=.1)
 
-                pulse.close()
             except Exception as e:
                 log.exception(f'Unhandled exception in PulseAudio thread: {e}')
 
         log.info('Stopping ProjectMAR PulseAudio Event Listener')
 
     """Close the PulseAudio connection and unload modules"""
-    def close(self):
-        if self.audio_listener_thread:
-            self.audio_listener_thread.join()
-            self.audio_listener_thread.close()
-            
+    def close(self):            
         for source_index, source_device in self.devices.source.items():
             if not source_device.name.startswith('bluez_source'):
                 self.unload_loopback_modules(source_name=source_device.name)

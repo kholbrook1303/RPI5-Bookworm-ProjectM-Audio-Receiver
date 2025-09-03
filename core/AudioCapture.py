@@ -20,7 +20,7 @@ class AudioCapture:
     def __del__(self):
         if self.audio_capture_impl:
             self.audio_capture_impl.stop_recording()
-            self.audio_capture_impl = None
+            del self.audio_capture_impl
 
     def output_device_list(self, deviceList):
         log.info(f'Available audio capturing devices:')
@@ -30,10 +30,6 @@ class AudioCapture:
 
     def get_initial_audio_device_index(self, deviceList):
         audioDeviceIndex = -1
-
-        for idx, dev in deviceList.items():
-            if 'ProjectMAR-NULL-Sink' in str(dev):
-                audioDeviceIndex = idx
 
         try:
             if not deviceList.get(audioDeviceIndex):

@@ -4,3 +4,8 @@
 
 /.vs/RPI5-Bookworm-ProjectM-Audio-Receiver
 /env
+/presets
+/presets_custom
+/preset_backup
+/textures
+/textures_custom

@@ -44,6 +44,10 @@ class RenderingLoop:
         self.signal_event       = SignalMonitor()
         self.thread_event       = thread_event
         self.input_event_lstn   = InputEventListener()
+        
+        self.sdl_rendering      = SDLRenderingWindow(self.config)
+        self.projectm_wrapper   = ProjectMWrapper(self.config, self.sdl_rendering)
+        self.audio_capture      = AudioCapture(self.config, self.projectm_wrapper)
 
         if self.config.audio_ctrl.get('audio_listener_enabled', False):
             handler = PhysicalMediaCtrl(self.thread_event, self.config)
@@ -55,10 +59,6 @@ class RenderingLoop:
                 handler = ControllerClass(self.thread_event, self.config)
                 handler.start()
                 self.ctrl_threads.append(handler)
-        
-        self.sdl_rendering      = SDLRenderingWindow(self.config)
-        self.projectm_wrapper   = ProjectMWrapper(self.config, self.sdl_rendering)
-        self.audio_capture      = AudioCapture(self.config, self.projectm_wrapper)
 
         self.controller_axis_states = {
             sdl2.SDL_CONTROLLER_AXIS_LEFTX: 'NEUTRAL',
@@ -103,6 +103,9 @@ class RenderingLoop:
 
             if self.preset_hung() and not self.projectm_wrapper.get_preset_locked():
                 self.simulate_keypress(sdl2.SDLK_n)
+
+        if self.signal_event.exit:
+            self.thread_event.set()
 
         del self.audio_capture
         del self.projectm_wrapper
@@ -230,27 +233,19 @@ class RenderingLoop:
             self.controller_axis_states[axis] = state
 
             match (axis, state):
-                case (sdl2.SDL_CONTROLLER_AXIS_LEFTX, 'LEFT'):
+                case (sdl2.SDL_CONTROLLER_AXIS_LEFTX, 'LEFT') | (sdl2.SDL_CONTROLLER_AXIS_TRIGGERLEFT, 'PRESSED'):
                     self.projectm_wrapper.previous_preset()
                     log.debug('User has requested the previous preset')
 
-                case (sdl2.SDL_CONTROLLER_AXIS_LEFTX, 'RIGHT'):
-                    log.debug('User has requested the next preset')
+                case (sdl2.SDL_CONTROLLER_AXIS_LEFTX, 'RIGHT') | (sdl2.SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 'PRESSED'):
                     self.projectm_wrapper.next_preset()
+                    log.debug('User has requested the next preset')
 
                 case (sdl2.SDL_CONTROLLER_AXIS_LEFTY, 'UP'):
-                    self.projectm_wrapper.change_beat_sensitivity(.1)
+                    self.projectm_wrapper.change_beat_sensitivity(0.1)
 
                 case (sdl2.SDL_CONTROLLER_AXIS_LEFTY, 'DOWN'):
-                    self.projectm_wrapper.change_beat_sensitivity(-.1)
-
-                case (sdl2.SDL_CONTROLLER_AXIS_TRIGGERLEFT, 'PRESSED'):
-                    self.projectm_wrapper.previous_preset()
-                    log.debug('User has requested the previous preset')
-
-                case (sdl2.SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 'PRESSED'):
-                    log.debug('User has requested the next preset')
-                    self.projectm_wrapper.next_preset()
+                    self.projectm_wrapper.change_beat_sensitivity(-0.1)
 
                 case _:
                     log.debug(f"Unhandled controller axis {hex(axis)} state {state}")
@@ -260,34 +255,22 @@ class RenderingLoop:
         button = event.cbutton.button
 
         match event.cbutton.button:
-            case sdl2.SDL_CONTROLLER_BUTTON_LEFTSTICK:
-                log.info(f'Preset lock status: {self.projectm_wrapper.get_preset_locked()}')
-                if self.projectm_wrapper.get_preset_locked():
-                    self.projectm_wrapper.lock_preset(False)
-                else:
-                    log.info('User has initiated a preset lock')
-                    self.projectm_wrapper.lock_preset(True)
+            case sdl2.SDL_CONTROLLER_BUTTON_LEFTSTICK | sdl2.SDL_CONTROLLER_BUTTON_RIGHTSTICK:
+                self.projectm_wrapper.toggle_preset_lock()
 
-            case sdl2.SDL_CONTROLLER_BUTTON_RIGHTSTICK:
-                if self.projectm_wrapper.get_preset_locked():
-                    self.projectm_wrapper.lock_preset(False)
-                else:
-                    log.info('User has initiated a preset lock')
-                    self.projectm_wrapper.lock_preset(True)
-                    
             case sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
-                self.projectm_wrapper.change_beat_sensitivity(.1)
+                self.projectm_wrapper.change_beat_sensitivity(0.1)
 
             case sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                self.projectm_wrapper.change_beat_sensitivity(-.1)
+                self.projectm_wrapper.change_beat_sensitivity(-0.1)
 
             case sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
                 self.projectm_wrapper.previous_preset()
                 log.debug('User has requested the previous preset')
 
             case sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-                log.debug('User has requested the next preset')
                 self.projectm_wrapper.next_preset()
+                log.debug('User has requested the next preset')
 
             case _:
                 log.info(f'unhandled controller button {hex(button)}')

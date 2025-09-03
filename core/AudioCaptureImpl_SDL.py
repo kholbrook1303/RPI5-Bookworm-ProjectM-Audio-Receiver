@@ -16,8 +16,6 @@ class AudioCaptureImpl:
         self.requestedSampleFrequency = sample_rate
         self.requestedSampleCount = sample_rate / config.projectm.get('projectm.fps', 60)
 
-        self.audio_callback = audio_callback
-
         sdl2.SDL_SetHint(sdl2.SDL_HINT_AUDIO_INCLUDE_MONITORS, b"1")
         sdl2.SDL_InitSubSystem(sdl2.SDL_INIT_AUDIO)
 
@@ -79,7 +77,7 @@ class AudioCaptureImpl:
             sdl2.AUDIO_F32SYS, 
             self.channels, 
             int(self.requestedSampleCount),
-            self.audio_callback,
+            audio_callback,
             user_data_ptr
             )
 
@@ -91,6 +89,7 @@ class AudioCaptureImpl:
             )
 
         deviceName = sdl2.SDL_GetAudioDeviceName(self.currentAudioDeviceIndex, True)
+
         self.currentAudioDeviceID = sdl2.SDL_OpenAudioDevice(
             deviceName, True, 
             requestedSpecs, 
@@ -100,6 +99,10 @@ class AudioCaptureImpl:
 
         if self.currentAudioDeviceID == 0:
             raise Exception(f'Failed to open audio device "{deviceName}" "{self.currentAudioDeviceID}" (ID {self.currentAudioDeviceIndex}): {sdl2.SDL_GetError()}')
+
+        fmt = actualSpecs.format
+        if fmt != sdl2.AUDIO_F32SYS:
+            log.warning(f"Audio format mismatch! Got {fmt}, expected AUDIO_F32SYS ({sdl2.AUDIO_F32SYS})")
 
         self.channels = actualSpecs.channels
 
