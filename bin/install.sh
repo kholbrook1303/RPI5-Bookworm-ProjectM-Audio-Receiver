@@ -472,7 +472,8 @@ elif [[ "$videoDevices" =~ "HDMI" ]]; then
     VIDEO_OUTPUT="hdmi"
 else
     log "Unable to detect video output device!"
-    exit 1
+    log "Defaulting to HDMI output mode"
+    VIDEO_OUTPUT="hdmi"
 fi
 
 if is_desktop; then
