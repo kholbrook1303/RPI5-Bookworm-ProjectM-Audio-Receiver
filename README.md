@@ -8,7 +8,7 @@ The core components of the application will:
 - Listen for SDL mouse/keyboard/gamepad/window events for user controlled actions and window focus mgmt (if using Raspberry Pi lite OS evdev is used to monitor keyboard/mouse events)
 
 The core controllers of the application will:
-- Enforce the display resolution if running the Raspberry Pi desktop OS (Otherwise fullscreen exclusive mode is used for Raspberry Pi OS lite OS)
+- Enforce the display resolution if running the Raspberry Pi desktop OS (Otherwise fullscreen exclusive mode is used for Raspberry Pi lite OS)
 - Manage audio routing to ensure the device used to direct PCM audio data to projectM library receives all audio, while also ensuring any device you add for both input and output are routed accordingly so you don't have to manage it yourself.
 - Manage audio plugin applications as defined in config.  Currently projectM Audio Receiver has installation instructions for Bluetooth A2DP, AirPlay, Spotify Connect, and Plexamp.
 
@@ -63,7 +63,7 @@ This document describes how keyboard, controller, and window input events are ha
 
 ## ⌨️ Keyboard Input
 
-This function handles key presses, with support for modifier keys like **Ctrl**.
+Handles key presses, with support for modifier keys like **Ctrl**.
 
 ### Modifier Support
 - `Ctrl` (either left or right) enables certain shortcut actions when combined with other keys.
