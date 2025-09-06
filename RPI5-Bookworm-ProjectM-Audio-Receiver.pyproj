@@ -23,18 +23,19 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="controllers\display.py" />
-    <Compile Include="controllers\plugins.py" />
+    <Compile Include="core\controllers\Display.py" />
+    <Compile Include="core\InputEventListener.py" />
+    <Compile Include="core\RenderingLoop.py" />
+    <Compile Include="core\controllers\Plugins.py" />
     <Compile Include="lib\abstracts.py" />
     <Compile Include="lib\common.py" />
     <Compile Include="lib\config.py" />
     <Compile Include="lib\constants.py" />
     <Compile Include="lib\log.py" />
-    <Compile Include="lib\projectM\AudioCapture.py" />
-    <Compile Include="lib\projectM\AudioCaptureImpl_SDL.py" />
-    <Compile Include="lib\projectM\ProjectMWrapper.py" />
-    <Compile Include="lib\projectM\RenderingLoop.py" />
-    <Compile Include="lib\projectM\SDLRendering.py" />
+    <Compile Include="core\AudioCapture.py" />
+    <Compile Include="core\AudioCaptureImpl_SDL.py" />
+    <Compile Include="core\ProjectMWrapper.py" />
+    <Compile Include="core\SDLRenderingWindow.py" />
     <Compile Include="projectMAR.py" />
   </ItemGroup>
   <ItemGroup>
@@ -44,17 +45,18 @@
     <Content Include="conf\audio_sinks.conf" />
     <Content Include="conf\audio_sources.conf" />
     <Content Include="bin\install.sh" />
-    <Content Include="controllers\audio.py" />
+    <Content Include="core\controllers\Audio.py" />
     <Content Include="LICENSE" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
+    <Content Include="SETUP.md" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="core\controllers\" />
     <Folder Include="lib\" />
     <Folder Include="conf\" />
     <Folder Include="bin\" />
-    <Folder Include="controllers\" />
-    <Folder Include="lib\projectM\" />
+    <Folder Include="core\" />
   </ItemGroup>
   <ItemGroup>
     <Interpreter Include="env\">
