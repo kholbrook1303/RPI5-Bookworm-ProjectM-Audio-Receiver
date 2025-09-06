@@ -49,6 +49,7 @@
     <Content Include="LICENSE" />
     <Content Include="README.md" />
     <Content Include="requirements.txt" />
+    <Content Include="SETUP.md" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="core\controllers\" />
