@@ -12,12 +12,7 @@ The core controllers of the application will:
 - Manage audio routing to ensure the device used to direct PCM audio data to projectM library receives all audio, while also ensuring any device you add for both input and output are routed accordingly so you don't have to manage it yourself.
 - Manage audio plugin applications as defined in config.  Currently projectM Audio Receiver has installation instructions for Bluetooth A2DP, AirPlay, Spotify Connect, and Plexamp.
 
-## Software Requirements:
-- Raspberry Pi OS Bookworm:
-  - Desktop OS (labwc, wayfire, and x11 are all supported)
-  - Lite OS
-
-## Example Use Cases
+## 🔉 Example Use Cases
 The obvious purpose for this is to have visualizations react to sound.  That said there are various use cases for implementation.
 - Music player:
   - Add DAC/ADC board for an analog input (e.g. HiFiBerry DAC+ ADC)
@@ -27,7 +22,21 @@ The obvious purpose for this is to have visualizations react to sound.  That sai
 - Monitoring Ambient Sound:
   - Add a USB microphone to capture sound for visualizing
 
-## Hardware Requirements:
+## 🖼️ Screenshots
+![ProjectMAR Screenshot 1](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview1.png)
+![ProjectMAR Screenshot 2](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview2.png)
+![ProjectMAR Screenshot 3](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview3.png)
+![ProjectMAR Screenshot 4](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview4.png)
+
+## 🎞️ Video Preview
+[![ProjectMAR Video 1](https://img.youtube.com/vi/8kj53j3EDec/0.jpg)](https://www.youtube.com/watch?v=8kj53j3EDec)
+
+## 💻 Software Requirements:
+- Raspberry Pi OS Bookworm:
+  - Desktop OS (labwc, wayfire, and x11 are all supported)
+  - Lite OS
+
+## 🔩 Hardware Requirements:
 
 - Raspberry Pi
   - Raspberry Pi 4  **This will only work with a reduced resolution and fps*
@@ -42,15 +51,6 @@ The obvious purpose for this is to have visualizations react to sound.  That sai
     - USB Microphone
     - USB Line in/Aux
     - DAC/ADC
-
-## 🖼️ Screenshots
-![ProjectMAR Screenshot 1](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview1.png)
-![ProjectMAR Screenshot 2](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview2.png)
-![ProjectMAR Screenshot 3](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview3.png)
-![ProjectMAR Screenshot 4](https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver/blob/main/resources/preview4.png)
-
-## 🎞️ Video Preview
-[![ProjectMAR Video 1](https://img.youtube.com/vi/8kj53j3EDec/0.jpg)](https://www.youtube.com/watch?v=8kj53j3EDec)
 
 # ⚙️ Installing instructions
 For both manual and automated script installation see [SETUP.md](SETUP.md).
@@ -85,7 +85,7 @@ Handles key presses, with support for modifier keys like **Ctrl**.
 
 ---
 
-## 🎮 Controller Axis Input
+## 🎮 Controller Axis Input (Desktop OS only)
 
 Handles analog stick and trigger inputs. Uses a **deadzone threshold** to avoid accidental movements.
 
@@ -100,7 +100,7 @@ Handles analog stick and trigger inputs. Uses a **deadzone threshold** to avoid 
 
 ---
 
-## 🎮 Controller Button Input
+## 🎮 Controller Button Input (Desktop OS only)
 
 Handles digital controller buttons such as D-Pad and stick clicks.
 
