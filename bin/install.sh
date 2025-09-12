@@ -102,11 +102,7 @@ retry_function() {
 }
 
 is_desktop() {
-    if grep -q "stage2" "/boot/issue.txt"; then
-        return 1
-    else
-        return 0
-    fi
+    ! grep -Eq "stage2|stage-hyperbian" "/boot/issue.txt"
 }
 
 is_library_current() {

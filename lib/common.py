@@ -12,7 +12,7 @@ def get_environment():
     with open('/boot/issue.txt', 'r') as infile:
         data = infile.read()
         for line in data.splitlines():
-            if 'stage2' in line:
+            if any(stage in line for stage in ['stage2','stage-hyperbian']):
                 return 'lite'
             elif 'stage4' in line:
                 return 'desktop'

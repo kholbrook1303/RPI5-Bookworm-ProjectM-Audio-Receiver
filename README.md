@@ -35,6 +35,14 @@ The obvious purpose for this is to have visualizations react to sound.  That sai
 - Raspberry Pi OS Bookworm:
   - Desktop OS (labwc, wayfire, and x11 are all supported)
   - Lite OS
+- HyperBian OS Bookworm
+
+## 🔆 Hyperion - Ambient LED Lighting Control
+Enhance your setup with the Hyperion ambient lighting implementation!  ProjectM Audio Receiver has been updated to support HyperBian OS for ease of managing LED light controllers.  Hyperion has various effects templates, but most importantly it can capture the screen allowing you to create an immersive visualization setup.
+
+Get started here: https://docs.hyperion-project.org/user/gettingstarted/Overview.html
+
+*Hyperion can implemented using the custom HyperBian OS image or setup from scratch on Raspberry Pi OS*
 
 ## 🔩 Hardware Requirements:
 

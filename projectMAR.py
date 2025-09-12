@@ -35,7 +35,7 @@ def get_diagnostics():
     audio.close()
 
     display = DisplayCtrl(None, config)
-    if display._environment == 'desktop':
+    if get_environment() == 'desktop':
         display_data = display.get_diagnostics()
 
         display_json = os.path.join(diag_path, 'display.json')

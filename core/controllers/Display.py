@@ -6,7 +6,7 @@ import threading
 import time
 
 from lib.abstracts import Controller
-from lib.common import execute_managed, load_library
+from lib.common import execute_managed, load_library, get_environment
 
 log = logging.getLogger()
 
@@ -344,25 +344,24 @@ class DisplayCtrl(Controller, threading.Thread):
 
     """Run the display controller thread"""
     def run(self):
-        if self._environment == 'desktop':
+        if get_environment() == 'desktop':
             self.enforce_resolution()
 
             log.info("Listening for display changes...")
 
             while not self._thread_event.is_set():
-                if self._environment == 'desktop':
-                    try:
-                        device = self.monitor.poll(timeout=1)
-                        if device is None:
-                            continue
+                try:
+                    device = self.monitor.poll(timeout=1)
+                    if device is None:
+                        continue
                     
-                        if device.action in ('change', 'add', 'remove'):
-                            log.warning(f'Detected a display {device.action} event')
+                    if device.action in ('change', 'add', 'remove'):
+                        log.warning(f'Detected a display {device.action} event')
 
-                            self.enforce_resolution()
+                        self.enforce_resolution()
 
-                    except Exception as e:
-                        log.error(f'Failed to enforce resolution: {e}')
+                except Exception as e:
+                    log.error(f'Failed to enforce resolution: {e}')
 
                 time.sleep(1)
 
