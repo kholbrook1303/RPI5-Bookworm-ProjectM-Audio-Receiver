@@ -536,7 +536,7 @@ if [ -n "$INSTALLATION_MODE" ]; then
         # Update repositories
         apt update
         # Install package dependencies
-        apt install -y pulseaudio python3-dev gcc vlc
+        apt install -y pulseaudio python3-dev gcc vlc libopenblas0 libopenblas-dev
         
         # Add current user to input group for evdev device access
         sudo usermod -aG input $SUDO_USER
