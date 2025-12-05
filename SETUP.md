@@ -109,7 +109,7 @@ If you enabled autostart on the installer the system should come up ready to go,
   ### Install the dependencies
   Install ProjectMAR dependencies
   ```
-  sudo apt install pulseaudio python3-dev gcc vlc libopenblas0 libopenblas-dev
+  sudo apt install pulseaudio python3-dev gcc vlc libopenblas0 libopenblas-dev libsdl2-dev
   ```
 
   Ensure that your account has permissions to input
