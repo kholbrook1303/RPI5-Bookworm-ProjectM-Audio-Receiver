@@ -1,3 +1,4 @@
+import glob
 import logging
 import os
 import signal
@@ -57,7 +58,8 @@ class Controller:
         for line in iter(stream.readline, ''):
             yield line.strip()
 
-    """Execute a process.
+    """Execute a plugin process, expanding wildcards before launching.
+    Captures stdout/stderr for monitoring.
     @param name: the name of the process
     @param path: the path to the executable
     @param args: an array of arguments including the executable
@@ -65,12 +67,30 @@ class Controller:
     @returns a ProcessAttributes instance
     """
     def _execute(self, name, path, args, shell=False):
-        process = Popen(args, stdin=PIPE, stderr=PIPE, stdout=PIPE, universal_newlines=True, shell=shell)
-        process_attributes = ProcessAttributes(
-            name, process, path, args
-            )
+        expanded_args = []
+        for arg in args:
+            # Only expand wildcards for local filesystem paths
+            if "*" in arg or "?" in arg or "[" in arg:  
+                files = glob.glob(arg)
+                if files:
+                    expanded_args.extend(files)
+                else:
+                    # If no files matched, keep the literal arg
+                    expanded_args.append(arg)
+            else:
+                expanded_args.append(arg)
 
-        return process_attributes
+        # Launch the process
+        process = Popen(
+            [path] + expanded_args[1:],  # path + expanded arguments
+            stdin=None,                  # important: do NOT pipe stdin
+            stdout=PIPE,
+            stderr=PIPE,
+            universal_newlines=True,
+            shell=False
+        )
+
+        return ProcessAttributes(name, process, path, expanded_args)
     
     """Execute a monitored process.
     @returns a boolean indicating whether the process execution failed
