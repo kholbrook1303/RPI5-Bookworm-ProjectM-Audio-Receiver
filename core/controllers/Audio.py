@@ -218,6 +218,12 @@ class AudioCtrl(Controller, threading.Thread):
             log.info('Unloading combined sink {}'.format(module.name))
             self.pulse_audio_callback('module_unload', module.index)
 
+    """Unload suspend on idle modules"""
+    def unload_suspend_on_idle(self):
+        for module in self.get_modules('module-suspend-on-idle'):
+            log.info('Unloading suspend on idle module {}'.format(module.name))
+            self.pulse_audio_callback('module_unload', module.index)
+
     """Load a combined sink module with specified sinks.
     @param combined_sinks: A list of sink names to combine.
     """
@@ -491,6 +497,8 @@ class AudioCtrl(Controller, threading.Thread):
 
     """Setup PulseAudio devices and load the null sink."""
     def setup_devices(self):
+        self.unload_suspend_on_idle()
+
         # Load null sink
         self.pulse_audio_callback('module_load', [
             'module-null-sink',
@@ -584,10 +592,9 @@ class AudioCtrl(Controller, threading.Thread):
         for source_index, source_device in self.devices.source.items():
             if not source_device.name.startswith('bluez_source'):
                 self.unload_loopback_modules(source_name=source_device.name)
-                
-        self.unload_combined_sink_modules()
 
         self.unload_null_sink_modules()
+        self.unload_combined_sink_modules()
         
 class BluetoothManager:
     """Controller for managing Bluetooth devices"""

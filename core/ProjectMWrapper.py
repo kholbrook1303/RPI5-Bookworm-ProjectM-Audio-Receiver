@@ -355,17 +355,15 @@ class ProjectMWrapper:
     def set_window_size(self, canvas_width, canvas_height):
         self.projectm_lib.projectm_set_window_size(self.projectm, canvas_width, canvas_height)
 
-    def add_pcm(self, samples: np.ndarray, channels):
+    def add_pcm(self, samples: np.ndarray, frame_count: int, channels: int):
         if not self.projectm:
             raise RuntimeError("projectM instance not initialized")
 
         samples = np.ascontiguousarray(samples, dtype=np.float32)
-
-        count_per_channel = samples.size // channels
         ptr = samples.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
 
         self.projectm_lib.projectm_pcm_add_float(
-            self.projectm, ptr, count_per_channel, channels
+            self.projectm, ptr, frame_count, channels
         )
 
     def render_frame(self):
