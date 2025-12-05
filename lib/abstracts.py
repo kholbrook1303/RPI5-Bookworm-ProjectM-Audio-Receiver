@@ -71,7 +71,7 @@ class Controller:
         for arg in args:
             # Only expand wildcards for local filesystem paths
             if "*" in arg or "?" in arg or "[" in arg:  
-                files = glob.glob(arg)
+                files = glob.glob(arg, recursive=True)
                 if files:
                     expanded_args.extend(files)
                 else:
