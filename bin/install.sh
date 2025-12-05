@@ -575,6 +575,7 @@ if [ -n "$INSTALLATION_MODE" ]; then
         if ! is_desktop; then
             mkdir -p /etc/systemd/system/getty@tty1.service.d
             cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin $SUDO_USER --noclear %I \$TERM
@@ -601,5 +602,8 @@ if [ -n "$INSTALLATION_PLUGINS" ]; then
 else
     log "No plugins were specified for installation"
 fi
+
+# Run ldconfig to update the dynamic linker run-time bindings
+ldconfig
 
 reboot
