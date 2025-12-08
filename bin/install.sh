@@ -15,10 +15,11 @@ INSTALLATION_LOGFILE="/home/$SUDO_USER/projectMAR-installer.log"
 
 # Check for an existing log file and move it to an indexed backup if exists
 if [ -e "$INSTALLATION_LOGFILE" ]; then
-  while [ -e "${INSTALLATION_LOGFILE}.${idx}" ]; do
-    idx=$((idx + 1))
-  done
-  mv "$INSTALLATION_LOGFILE" "${INSTALLATION_LOGFILE}.${idx}"
+    idx=1
+    while [ -e "${INSTALLATION_LOGFILE}.${idx}" ]; do
+        idx=$((idx + 1))
+    done
+    mv "$INSTALLATION_LOGFILE" "${INSTALLATION_LOGFILE}.${idx}"
 fi
 
 PROJECTMAR_PATH="/opt/ProjectMAR"
@@ -102,11 +103,7 @@ retry_function() {
 }
 
 is_desktop() {
-    if grep -q "stage2" "/boot/issue.txt"; then
-        return 1
-    else
-        return 0
-    fi
+    ! grep -Eq "stage2|stage-hyperbian" "/boot/issue.txt"
 }
 
 is_library_current() {
@@ -222,6 +219,8 @@ EOF
             cat > "/etc/systemd/user/projectm.service" << EOF
 [Unit]
 Description=ProjectMAR
+After=default.target pulseaudio.socket
+Requires=default.target
 
 [Service]
 Type=simple
@@ -231,9 +230,7 @@ Restart=on-failure
 [Install]
 WantedBy=default.target
 EOF
-            systemctl --global enable projectm.service
-        fi
-    fi
+    systemctl --global enable projectm.service
 }
 
 add_audio_plugin_config() {
@@ -567,15 +564,14 @@ if [ -n "$INSTALLATION_MODE" ]; then
         fi
 
         # Force the Open GL version
-        if ! grep -q "MESA_GL_VERSION_OVERRIDE=4.5" "/etc/environment"; then
-            echo -e "\nMESA_GL_VERSION_OVERRIDE=4.5" >> /etc/environment
-        fi
+        #if ! grep -q "MESA_GL_VERSION_OVERRIDE=4.5" "/etc/environment"; then
+        #    echo -e "\nMESA_GL_VERSION_OVERRIDE=4.5" >> /etc/environment
+        #fi
 
         # if lite OS enable autologin for the user
         if ! is_desktop; then
             mkdir -p /etc/systemd/system/getty@tty1.service.d
             cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
-
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin $SUDO_USER --noclear %I \$TERM
@@ -602,8 +598,5 @@ if [ -n "$INSTALLATION_PLUGINS" ]; then
 else
     log "No plugins were specified for installation"
 fi
-
-# Run ldconfig to update the dynamic linker run-time bindings
-ldconfig
 
 reboot

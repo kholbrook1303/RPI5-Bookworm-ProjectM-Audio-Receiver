@@ -12,7 +12,7 @@ sudo apt upgrade -y
 <details>
 <summary><b>Automated Installation</b></summary>
 
-### Install projectM, frontend SDL, and projectMAR using the new setup script
+### Install projectM and projectMAR using the new setup script
 
 ProjectMAR installer is comprised of 2 optional installation modes:
 - minimal: This will install everything but configure nothing.  This is a more advanced approach.
@@ -71,217 +71,217 @@ If you enabled autostart on the installer the system should come up ready to go,
 <details>
 <summary><b>Manual Installation</b></summary></br>
 
-  Lets add a directory to store our builds so we dont clutter the home directory
-  ```
-  mkdir -p /tmp/Builds
-  ```
+Lets add a directory to store our builds so we dont clutter the home directory
+```
+mkdir -p /tmp/Builds
+```
 
-  ### Building ProjectM and Dependencies
-  It is advised to only use the releases tested here as they are version controlled to ensure a seamless experience.
+### Building ProjectM and Dependencies
+It is advised to only use the releases tested here as they are version controlled to ensure a seamless experience.
 
-  <details>
-  <summary><b>Building libprojectM</b></summary>
+<details>
+<summary><b>Building libprojectM</b></summary>
 
-  ### Install the build tools and dependencies
-  Get the mandatory packages:
-  ```
-  sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
-  ```
+### Install the build tools and dependencies
+Get the mandatory packages:
+```
+sudo apt install build-essential cmake libgl1-mesa-dev mesa-common-dev libglm-dev mesa-utils flex bison openssl libssl-dev git
+```
 
-  ### Download/extract/build libprojectM
-  The current build this project uses is 4.0.0.  There is currently a bug in later releases that impact performance on the Raspberry Pi.
-  ```
-  cd /tmp/Builds
-  wget https://github.com/projectM-visualizer/projectm/releases/download/v4.1.4/libprojectM-4.1.4.tar.gz
-  tar xf libprojectM-4.1.4.tar.gz
-  cd /tmp/Builds/libprojectM-4.1.4/
-  mkdir build
-  cd build
-  cmake -DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
-  cmake --build . --parallel && sudo cmake --build . --target install
-  ```
+### Download/extract/build libprojectM
+The current build this project uses is 4.0.0.  There is currently a bug in later releases that impact performance on the Raspberry Pi.
+```
+cd /tmp/Builds
+wget https://github.com/projectM-visualizer/projectm/releases/download/v4.1.4/libprojectM-4.1.4.tar.gz
+tar xf libprojectM-4.1.4.tar.gz
+cd /tmp/Builds/libprojectM-4.1.4/
+mkdir build
+cd build
+cmake -DENABLE_GLES=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local ..
+cmake --build . --parallel && sudo cmake --build . --target install
+```
 
-  </details>
+</details>
 
-  <details>
-  <summary><b>Installing ProjectMAR</b></summary>
+<details>
+<summary><b>Installing ProjectMAR</b></summary>
 
-  ### Install the dependencies
-  Install ProjectMAR dependencies
-  ```
-  sudo apt install pulseaudio python3-dev gcc vlc libopenblas0 libopenblas-dev libsdl2-dev
-  ```
+### Install the dependencies
+Install ProjectMAR dependencies
+```
+sudo apt install pulseaudio python3-dev gcc vlc
+```
 
-  Ensure that your account has permissions to input
-  ```
-  sudo usermod -aG input $USER
-  ```
+Ensure that your account has permissions to input
+```
+sudo usermod -aG input $USER
+```
 
-  Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
+Check to ensure your device is configured for PulseAudio by going to sudo raspi-config, then select Advanced Options - Audio Config - PulseAudio (Reboot if you made any changes)
 
-  ### Download and setup ProjectM Audio Receiver from source
-  Pull the sources from Github and copy files to installation directory (Make sure you replace $GROUP:$USER with the appropriate user and group)
-  ```
-  cd /tmp/Builds
-  git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git
-  sudo mkdir /opt/ProjectMAR
-  sudo cp -r /tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMAR/
-  sudo chown $GROUP:$USER /opt/ProjectMAR/ -R
-  sudo chmod 777 -R /opt/ProjectMAR
-  ```
+### Download and setup ProjectM Audio Receiver from source
+Pull the sources from Github and copy files to installation directory (Make sure you replace $GROUP:$USER with the appropriate user and group)
+```
+cd /tmp/Builds
+git clone https://github.com/kholbrook1303/RPI5-Bookworm-ProjectM-Audio-Receiver.git
+sudo mkdir /opt/ProjectMAR
+sudo cp -r /tmp/Builds/RPI5-Bookworm-ProjectM-Audio-Receiver/* /opt/ProjectMAR/
+sudo chown $GROUP:$USER /opt/ProjectMAR/ -R
+sudo chmod 777 -R /opt/ProjectMAR
+```
 
-  ### Setup Python virtual environment
-  Install the virtual environment
-  ```
-  cd /opt/ProjectMAR/
-  python3 -m venv env
-  ```
+### Setup Python virtual environment
+Install the virtual environment
+```
+cd /opt/ProjectMAR/
+python3 -m venv env
+```
 
-  ### Get all Python dependencies
-  Install all Python dependencies
-  ```
-  /opt/ProjectMAR/env/bin/python3 -m pip install -r requirements.txt
-  ```
+### Get all Python dependencies
+Install all Python dependencies
+```
+/opt/ProjectMAR/env/bin/python3 -m pip install -r requirements.txt
+```
 
-  ### Force the Open GL version
+### Force the Open GL version
 
-  Open the '/etc/environment' file to set environment variables
-  ```
-  sudo nano /etc/environment
-  ```
+Open the '/etc/environment' file to set environment variables
+```
+sudo nano /etc/environment
+```
 
-  Add the following entry
-  ```
-  MESA_GL_VERSION_OVERRIDE=4.5
-  ```
+Add the following entry
+```
+MESA_GL_VERSION_OVERRIDE=4.5
+```
 
-  ## Environment Specific Startup Instructions
-  <details>
-  <summary><b>RPI OS Desktop Instructions</b></summary>
-  
-  ### Setup the auto start on boot
+## Environment Specific Startup Instructions
+<details>
+<summary><b>RPI OS Desktop Instructions</b></summary>
 
-  Add ProjectMAR to autostart
-  ```
-  sudo nano /etc/xdg/autostart/projectm.desktop
-  ```
+### Setup the auto start on boot
 
-  Add the following configuration
-  ```
-  [Desktop Entry]
-  Name=ProjectMAR
-  Exec=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
-  Type=Application
-  ```
-  </details>
+Add ProjectMAR to autostart
+```
+sudo nano /etc/xdg/autostart/projectm.desktop
+```
 
-  <details>
-  <summary><b>RPI OS Lite Instructions</b></summary>
+Add the following configuration
+```
+[Desktop Entry]
+Name=ProjectMAR
+Exec=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
+Type=Application
+```
+</details>
 
-  ### Setup the auto start on boot
+<details>
+<summary><b>RPI OS Lite Instructions</b></summary>
 
-  Enable autologon if using the lite version of RPI OS
+### Setup the auto start on boot
 
-  Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
-  ```
-  sudo raspi-config
-  ```
+Enable autologon if using the lite version of RPI OS
 
-  ### Create a startup service
-  Create a service by running
-  ```
-  sudo nano /etc/systemd/user/projectm.service
-  ```
+Enable auto-logon.  Run the following command and then navigate to System Options -> Boot / Auto Logon -> Console Auto Logon
+```
+sudo raspi-config
+```
 
-  ```
-  [Unit]
-  Description=ProjectMAR
+### Create a startup service
+Create a service by running
+```
+sudo nano /etc/systemd/user/projectm.service
+```
 
-  [Service]
-  Type=simple
-  ExecStart=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
-  Restart=on-failure
+```
+[Unit]
+Description=ProjectMAR
 
-  [Install]
-  WantedBy=default.target
-  ```
+[Service]
+Type=simple
+ExecStart=/opt/ProjectMAR/env/bin/python3 /opt/ProjectMAR/projectMAR.py
+Restart=on-failure
 
-  Enable and start the service
-  ```
-  systemctl --user enable projectm
-  systemctl --user start projectm
-  ```
-  </details>
+[Install]
+WantedBy=default.target
+```
 
-  </details>
-  
+Enable and start the service
+```
+systemctl --user enable projectm
+systemctl --user start projectm
+```
+</details>
 
-  <details>
-  <summary><b>Setup ProjectM Presets and Textures</b></summary></br>
-
-  ***Note:** If you ran the automated installation you already have my presets applied.  Proceed if you would like to add or change anything.*
-
-  The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.  The projectM library does not ship with any presets or textures so you want to grab them and deploy them.
-
-  There are many options available to you for presets and textures.  In the following I have outlined 3 options:
-    <details>
-    <summary><b>GitHub Repo - RPI5-ProjectM-Presets-Textures</b> <i>My hand selected presets and textures for the latest libprojectM release for the Raspberry Pi 5</i></summary>
-
-    ### Download and move the presets and textures
-    ```
-    mkdir -p /tmp/Builds
-    cd /tmp/Builds
-    git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git
-    cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMAR/ -R
-    cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMAR/ -R
-    ```
-
-    </details>
-
-    <details>
-    <summary><b>GitHub Repo - projectM-presets-rpi5</b> <i>Presets and textures repository managed by mickabrig7, and benchmarked for the Raspberry Pi 5</i></summary>
-
-    ### Download and move the presets and textures
-    *Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
-    ```
-    mkdir -p /tmp/Builds
-    cd /tmp/Builds
-    git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
-    cp /tmp/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMAR/ -R
-    cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMAR/ -R
-    ```
-
-    Adjust /opt/ProjectMAR/conf/projectMAR.conf to include the preset and texture directories
-    ```
-    projectM.presetPath = /opt/ProjectMAR/presets
-    projectM.texturePath = /opt/ProjectMAR/textures
-    ```
-
-    </details>
+</details>
 
 
-    <details>
-    <summary><b>Manual Method</b> <i>Resources to obtain community presets and textures</i></summary>
+<details>
+<summary><b>Setup ProjectM Presets and Textures</b></summary></br>
 
-    ### General Presets and Textures:
-    Textures:
-    - [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
-      use with _any_ preset pack!
+***Note:** If you ran the automated installation you already have my presets applied.  Proceed if you would like to add or change anything.*
 
-    Presets:
-    - [Cream of the Crop Pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop) - A collection of about 10K
-      presets compiled by Jason Fletcher. Currently, projectM's default preset pack.
-    - [Classic projectM Presets](https://github.com/projectM-visualizer/presets-projectm-classic) - A bit over 4K presets
-      shipped with previous versions of projectM.
-    - [Milkdrop 2 Presets](https://github.com/projectM-visualizer/presets-milkdrop-original) - The original preset
-      collection shipped with Milkdrop and Winamp.
-    - [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
+The preset files define the visualizations via pixel shaders and Milkdrop-style equations and parameters.  The projectM library does not ship with any presets or textures so you want to grab them and deploy them.
 
-    </br></details>
+There are many options available to you for presets and textures.  In the following I have outlined 3 options:
+<details>
+<summary><b>GitHub Repo - RPI5-ProjectM-Presets-Textures</b> <i>My hand selected presets and textures for the latest libprojectM release for the Raspberry Pi 5</i></summary>
 
-  </details>
+### Download and move the presets and textures
+```
+mkdir -p /tmp/Builds
+cd /tmp/Builds
+git clone https://github.com/kholbrook1303/RPI5-ProjectM-Presets-Textures.git
+cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/presets/ /opt/ProjectMAR/ -R
+cp /tmp/Builds/RPI5-ProjectM-Presets-Textures/textures/ /opt/ProjectMAR/ -R
+```
 
-  </details>
+</details>
+
+<details>
+<summary><b>GitHub Repo - projectM-presets-rpi5</b> <i>Presets and textures repository managed by mickabrig7, and benchmarked for the Raspberry Pi 5</i></summary>
+
+### Download and move the presets and textures
+*Special thank you to [mickabrig7](https://github.com/mickabrig7/projectM-presets-rpi5) for benchmarking 11,233 presets to narrow down a package specially for the Raspberry Pi 5!*
+```
+mkdir -p /tmp/Builds
+cd /tmp/Builds
+git clone https://github.com/mickabrig7/projectM-presets-rpi5.git
+cp /tmp/Builds/projectM-presets-rpi5/presets/ /opt/ProjectMAR/ -R
+cp /tmp/Builds/projectM-presets-rpi5/textures/ /opt/ProjectMAR/ -R
+```
+
+Adjust /opt/ProjectMAR/conf/projectMAR.conf to include the preset and texture directories
+```
+projectM.presetPath = /opt/ProjectMAR/presets
+projectM.texturePath = /opt/ProjectMAR/textures
+```
+
+</details>
+
+
+<details>
+<summary><b>Manual Method</b> <i>Resources to obtain community presets and textures</i></summary>
+
+### General Presets and Textures:
+Textures:
+- [Base Milkdrop texture pack](https://github.com/projectM-visualizer/presets-milkdrop-texture-pack) - Recommended for
+  use with _any_ preset pack!
+
+Presets:
+- [Cream of the Crop Pack](https://github.com/projectM-visualizer/presets-cream-of-the-crop) - A collection of about 10K
+  presets compiled by Jason Fletcher. Currently, projectM's default preset pack.
+- [Classic projectM Presets](https://github.com/projectM-visualizer/presets-projectm-classic) - A bit over 4K presets
+  shipped with previous versions of projectM.
+- [Milkdrop 2 Presets](https://github.com/projectM-visualizer/presets-milkdrop-original) - The original preset
+  collection shipped with Milkdrop and Winamp.
+- [En D Presets](https://github.com/projectM-visualizer/presets-en-d) - About 50 presets created by "En D".
+
+</br></details>
+
+</details>
+
+</details>
 
 </details>
 
@@ -616,6 +616,39 @@ arguments=--no-daemon --backend pulseaudio
 Once running goto Spotify on your mobile device and select the devices button.  In the menu of systems select the hostname of your Raspberry Pi to broadcast music.
 
 </details>
+
+##  Hyperion Ambient Lighting
+Hyperion can be installed allongside ProjectMAR to control LED controllers to extend the visualizations beyond the screen (via USB Capture Card or Screen Capture).
+
+### Caveats
+Screen capture only works on a Desktop environment running X11.  Because of this you have to go into `raspi-config` -> `Advanced Options` -> `Wayland` and choose `x11`.
+
+USB capture cards in my experience have only worked when setting USB to maximum voltage.  You can do that by editing the `/boot/firmware/config.txt` with a line at the end for `usb_max_current_enable=1`.  Reboot when done.
+
+Capture picture decimation should be set at minimum of 4, and the refresh rate should not exceed 30 to ensure you dont overload the system.
+
+### Installation
+First run the Hyperion installer to obtain the latest version:
+```
+curl -sSL https://releases.hyperion-project.org/install | bash
+```
+
+Once done you will need to disable the system service if you want to enable screen :
+```
+sudo systemctl disable hyperion@.service
+```
+
+Now create an XDG autostart entry so that when hyperion runs it inherits the user environment allowing QT screen capture.  
+
+Run `sudo nano /etc/xdg/autostart/hyperion.desktop` and add the following execution details:
+```
+[Desktop Entry]
+Name=Hyperion
+Exec=/usr/bin/hyperiond
+Type=Application
+```
+
+Reboot the application and you should be able to load the hyperion web UI at http://<SYSTEM_IP>:8090/
 
 ## Composite Video
 
