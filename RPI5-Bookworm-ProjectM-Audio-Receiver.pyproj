@@ -24,6 +24,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="core\controllers\Display.py" />
+    <Compile Include="core\FPSLimiter.py" />
     <Compile Include="core\InputEventListener.py" />
     <Compile Include="core\RenderingLoop.py" />
     <Compile Include="core\controllers\Plugins.py" />
@@ -44,6 +45,7 @@
     <Content Include="conf\projectMAR.conf" />
     <Content Include="conf\audio_sinks.conf" />
     <Content Include="conf\audio_sources.conf" />
+    <Content Include="conf\sprites.conf" />
     <Content Include="bin\install.sh" />
     <Content Include="core\controllers\Audio.py" />
     <Content Include="LICENSE" />
