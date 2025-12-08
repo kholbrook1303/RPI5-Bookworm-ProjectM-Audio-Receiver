@@ -20,10 +20,8 @@ class SDLRenderingWindow:
 
         self.create_sdl_window()
 
-    def __del__(self):
-        for controller in self.controllers:
-            sdl2.SDL_GameControllerClose(controller)
-
+    def close(self):
+        log.info('Destroying SDL rendering window')
         self.destroy_sdl_window()
 
     def get_drawable_size(self, width, height):
@@ -84,12 +82,6 @@ class SDLRenderingWindow:
         if sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO | sdl2.SDL_INIT_GAMECONTROLLER | sdl2.SDL_INIT_JOYSTICK):
             log.error("SDL_Init Error:", sdl2.SDL_GetError())
             return
-        
-        for i in range(sdl2.SDL_NumJoysticks()):
-            if sdl2.SDL_IsGameController(i):
-                controller = sdl2.SDL_GameControllerOpen(i)
-                if controller:
-                    self.controllers.append(controller)
 
         width = self.config.projectm.get('window.width', 800)
         height = self.config.projectm.get('window.height', 600)
@@ -117,9 +109,9 @@ class SDLRenderingWindow:
                 left = bounds.x
                 top = bounds.y
 
-        sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_CONTEXT_MAJOR_VERSION, 3)
-        sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_CONTEXT_MINOR_VERSION, 3)
-        sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_CONTEXT_PROFILE_MASK, sdl2.SDL_GL_CONTEXT_PROFILE_CORE)
+        sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_CONTEXT_MAJOR_VERSION, 2)
+        sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_CONTEXT_MINOR_VERSION, 0)
+        sdl2.SDL_GL_SetAttribute(sdl2.SDL_GL_CONTEXT_PROFILE_MASK, sdl2.SDL_GL_CONTEXT_PROFILE_ES)
 
         self.rendering_window = sdl2.SDL_CreateWindow(
             b"projectM Python SDL2", left, top, width, height, 

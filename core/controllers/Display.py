@@ -6,7 +6,7 @@ import threading
 import time
 
 from lib.abstracts import Controller
-from lib.common import execute_managed, load_library
+from lib.common import execute_managed, load_library, get_environment
 
 log = logging.getLogger()
 
@@ -152,10 +152,14 @@ class DisplayCtrl(Controller, threading.Thread):
         self.libdrm.drmModeFreeCrtc.restype = None
 
         self.display_type = self._get_display_type()
+        self.environment = get_environment()
 
         self.context = pyudev.Context()
         self.monitor = pyudev.Monitor.from_netlink(self.context)
         self.monitor.filter_by(subsystem='drm')
+
+        if self.environment == 'desktop':
+            self.enforce_resolution()
 
     def _get_display_type(self): 
         session_type = os.getenv('XDG_SESSION_DESKTOP')
@@ -210,7 +214,7 @@ class DisplayCtrl(Controller, threading.Thread):
             card_name = f"/dev/dri/card{card_idx}"
 
             try:
-                log.info(f'Attempting to open card {card_name}')
+                log.debug(f'Attempting to open card {card_name}')
                 fd = os.open(card_name, os.O_RDONLY)
             except OSError:
                 continue
@@ -220,7 +224,6 @@ class DisplayCtrl(Controller, threading.Thread):
             try:
                 resources = self.libdrm.drmModeGetResources(fd)
                 if not resources:
-                    log.error("Unable to get DRM resources")
                     continue
 
                 for i in range(resources.contents.count_connectors):
@@ -277,6 +280,9 @@ class DisplayCtrl(Controller, threading.Thread):
                     self.libdrm.drmModeFreeConnector(conn_ptr)
             finally:
                 os.close(fd)
+
+        if len(configs) == 0:
+            raise RuntimeError('No connected display devices found')
 
         return configs
 
@@ -344,25 +350,22 @@ class DisplayCtrl(Controller, threading.Thread):
 
     """Run the display controller thread"""
     def run(self):
-        if self._environment == 'desktop':
-            self.enforce_resolution()
-
+        if self.environment == 'desktop':
             log.info("Listening for display changes...")
 
             while not self._thread_event.is_set():
-                if self._environment == 'desktop':
-                    try:
-                        device = self.monitor.poll(timeout=1)
-                        if device is None:
-                            continue
+                try:
+                    device = self.monitor.poll(timeout=1)
+                    if device is None:
+                        continue
                     
-                        if device.action in ('change', 'add', 'remove'):
-                            log.warning(f'Detected a display {device.action} event')
+                    if device.action in ('change', 'add', 'remove'):
+                        log.warning(f'Detected a display {device.action} event')
 
-                            self.enforce_resolution()
+                        self.enforce_resolution()
 
-                    except Exception as e:
-                        log.error(f'Failed to enforce resolution: {e}')
+                except Exception as e:
+                    log.error(f'Failed to enforce resolution: {e}')
 
                 time.sleep(1)
 

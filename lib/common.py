@@ -1,5 +1,6 @@
 import ctypes.util
 import logging
+import platform
 
 from subprocess import PIPE, Popen
 
@@ -12,12 +13,16 @@ def get_environment():
     with open('/boot/issue.txt', 'r') as infile:
         data = infile.read()
         for line in data.splitlines():
-            if 'stage2' in line:
+            if any(stage in line for stage in ['stage2','stage-hyperbian']):
                 return 'lite'
             elif 'stage4' in line:
                 return 'desktop'
                 
     return None
+
+"""Get OS release information as a dictionary."""
+def get_os_release():
+    return platform.freedesktop_os_release()
 
 """Execute a process.
 @param name: the name of the process
@@ -54,6 +59,10 @@ def execute_managed(args, shell=False):
         
     return True
 
+"""Load a shared library using ctypes.
+@param name: the name of the library to load
+@returns the loaded library
+"""
 def load_library(name: str):
     path = ctypes.util.find_library(name)
     if not path:

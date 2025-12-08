@@ -15,7 +15,7 @@ from core.RenderingLoop import RenderingLoop
 
 log = logging.getLogger()
 
-def get_diagnostics():
+def get_diagnostics(config):
     diag_path = os.path.join(APP_ROOT, 'diag')
     if not os.path.exists(diag_path):
         os.makedirs(diag_path)
@@ -35,7 +35,7 @@ def get_diagnostics():
     audio.close()
 
     display = DisplayCtrl(None, config)
-    if display._environment == 'desktop':
+    if get_environment() == 'desktop':
         display_data = display.get_diagnostics()
 
         display_json = os.path.join(diag_path, 'display.json')
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     thread_event = threading.Event()
 
     if args.diag:
-        get_diagnostics()
+        get_diagnostics(config)
 
     else:
         app = RenderingLoop(config, thread_event)
@@ -81,6 +81,6 @@ if __name__ == "__main__":
         except:
             log.exception('Fatal error running projectMAR!')
         finally:
-            del app
+            app.close()
 
     sys.exit(0)

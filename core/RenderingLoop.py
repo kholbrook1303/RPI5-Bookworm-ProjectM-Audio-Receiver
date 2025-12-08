@@ -4,18 +4,17 @@ import sdl2
 import signal
 import time
 
-from OpenGL import GL
-
 from lib.common import get_environment
+
+from core.AudioCapture import AudioCapture
+from core.FPSLimiter import FPSLimiter
+from core.InputEventListener import InputEventListener, EVDEV_INSTALLED
+from core.ProjectMWrapper import ProjectMWrapper
+from core.SDLRenderingWindow import SDLRenderingWindow
 
 from core.controllers.Audio import AudioCtrl, PhysicalMediaCtrl
 from core.controllers.Display import DisplayCtrl
 from core.controllers.Plugins import PluginCtrl
-from core.InputEventListener import InputEventListener, EVDEV_INSTALLED
-
-from core.ProjectMWrapper import ProjectMWrapper
-from core.SDLRenderingWindow import SDLRenderingWindow
-from core.AudioCapture import AudioCapture
 
 log = logging.getLogger()
 
@@ -32,19 +31,14 @@ class SignalMonitor:
         self.exit = True
 
 class RenderingLoop:
-    CONTROLLER_REGISTRY = [
-        ('audio_ctrl', AudioCtrl),
-        ('plugin_ctrl', PluginCtrl),
-        ('display_ctrl', DisplayCtrl)
-    ]
-
     def __init__(self, config, thread_event):
         self.config             = config
+        self.thread_event       = thread_event
+        self.environment        = get_environment()
         self.ctrl_threads       = list()
         self.signal_event       = SignalMonitor()
-        self.thread_event       = thread_event
         self.input_event_lstn   = InputEventListener()
-        
+
         self.sdl_rendering      = SDLRenderingWindow(self.config)
         self.projectm_wrapper   = ProjectMWrapper(self.config, self.sdl_rendering)
         self.audio_capture      = AudioCapture(self.config, self.projectm_wrapper)
@@ -54,11 +48,19 @@ class RenderingLoop:
             handler.start()
             self.ctrl_threads.append(handler)
 
-        for config_key, ControllerClass in self.CONTROLLER_REGISTRY:
-            if self.config.general.get(config_key, False):
-                handler = ControllerClass(self.thread_event, self.config)
-                handler.start()
-                self.ctrl_threads.append(handler)
+        audio_controller = AudioCtrl(self.thread_event, self.config)
+        audio_controller.start()
+        self.ctrl_threads.append(audio_controller)
+
+        display_controller = DisplayCtrl(self.thread_event, self.config)
+        display_controller.start()
+        self.ctrl_threads.append(display_controller)
+
+        plugin_controller = PluginCtrl(self.thread_event, self.config)
+        plugin_controller.start()
+        self.ctrl_threads.append(plugin_controller)
+
+        self.controllers = dict()
 
         self.controller_axis_states = {
             sdl2.SDL_CONTROLLER_AXIS_LEFTX: 'NEUTRAL',
@@ -68,38 +70,53 @@ class RenderingLoop:
             sdl2.SDL_CONTROLLER_AXIS_TRIGGERLEFT: 'NEUTRAL',
             sdl2.SDL_CONTROLLER_AXIS_TRIGGERRIGHT: 'NEUTRAL',
         }
+        
+        for i in range(sdl2.SDL_NumJoysticks()):
+            if sdl2.SDL_IsGameController(i):
+                controller = sdl2.SDL_GameControllerOpen(i)
+                if controller:
+                    if not any (controller == c for c in self.controllers.values()):
+                        instance_id = sdl2.SDL_JoystickInstanceID(sdl2.SDL_GameControllerGetJoystick(controller))
+                        self.controllers[instance_id] = controller
+                        log.info(f"Controller {instance_id} connected: {sdl2.SDL_GameControllerName(controller).decode()}")
+
+        self.input_down_catalog = set()
+        self.input_down_time_catalog = {}
 
         self._renderWidth = None
         self._renderHeight = None
 
-    def __del__(self):
+    def close(self):
         for controller in self.ctrl_threads:
             controller.join()
             controller.close()
 
     def run(self):
-        if EVDEV_INSTALLED and get_environment() == 'lite':
+        limiter = FPSLimiter()
+
+        if EVDEV_INSTALLED and self.environment == 'lite':
             # Start evdev input thread
             self.input_event_lstn.start_evdev_listener()
 
         # Start projectM
         self.projectm_wrapper.display_initial_preset()
 
-        while not self.thread_event.is_set() and not self.signal_event.exit:
+        while not (self.thread_event.is_set() or self.signal_event.exit):
+            limiter.target_fps(self.config.projectm.get('projectm.fps', 60))
+            limiter.start_frame();
+
             self.poll_events()
             self.check_viewport_size()
 
-            # Clear the OpenGL context
-            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-
-            # Render projectM frame
+            self.audio_capture.fill_buffer()
             self.projectm_wrapper.render_frame()
 
             # Swap buffers
             self.sdl_rendering.swap()
 
-            # Frame limiting (simple)
-            sdl2.SDL_Delay(int(1000 / self.config.projectm.get("projectm.fps", 60)))
+            limiter.end_frame();
+
+            self.projectm_wrapper.update_real_fps(limiter.fps())
 
             if self.preset_hung() and not self.projectm_wrapper.get_preset_locked():
                 self.simulate_keypress(sdl2.SDLK_n)
@@ -107,9 +124,15 @@ class RenderingLoop:
         if self.signal_event.exit:
             self.thread_event.set()
 
-        del self.audio_capture
-        del self.projectm_wrapper
-        del self.sdl_rendering
+        for instance_id,controller in self.controllers.items():
+            try:
+                sdl2.SDL_GameControllerClose(controller)
+            except Exception as e:
+                log.error(f'Error closing controller: {e}')
+
+        self.audio_capture.close()
+        self.projectm_wrapper.close()
+        self.sdl_rendering.close()
 
     """Simulate a keypress
     @param sdl_key: the key to emit
@@ -140,65 +163,60 @@ class RenderingLoop:
             
     def key_event(self, event, key_down):
         key_modifier = event.key.keysym.mod
-        modifier_pressed = False
+        modifier_pressed = (key_modifier & sdl2.KMOD_LCTRL) or (key_modifier & sdl2.KMOD_RCTRL)
 
-        if (key_modifier & sdl2.KMOD_LCTRL) or (key_modifier & sdl2.KMOD_RCTRL):
-            modifier_pressed = True
+        key = event.key.keysym.sym
 
-        match event.key.keysym.sym:
-            case sdl2.SDLK_f:
-                if modifier_pressed:
+        if key_down:
+            match key:
+                case sdl2.SDLK_f:
+                    if modifier_pressed:
+                        self.sdl_rendering.toggle_fullscreen()
+
+                # Removing since audio routing is controlled by projectMAR
+                # case sdl2.SDLK_i:
+                #     if modifier_pressed:
+                #         self.audio_capture.next_audio_device()
+
+                case sdl2.SDLK_n:
+                    log.debug('User has requested the next preset')
+                    self.projectm_wrapper.next_preset()
+
+                case sdl2.SDLK_p:
+                    self.projectm_wrapper.previous_preset()
+                    log.debug('User has requested the previous preset')
+
+                case sdl2.SDLK_q:
+                    if modifier_pressed:
+                        log.info('User initiated exit!')
+                        self.thread_event.set()
+
+                case sdl2.SDLK_y:
+                    if modifier_pressed:
+                        if self.projectm_wrapper.get_preset_shuffle():
+                            self.projectm_wrapper.shuffle_playlist(False)
+                        else:
+                            log.info('User has initiated playlist shuffling')
+                            self.projectm_wrapper.shuffle_playlist(True)
+
+                case sdl2.SDLK_DELETE:
+                    log.warning(f'User has opted to remove preset {self.projectm_wrapper.current_preset}')
+                    self.projectm_wrapper.delete_preset(physical=True)
+
+                case sdl2.SDLK_SPACE:
+                    self.projectm_wrapper.toggle_preset_lock()
+            
+                case sdl2.SDLK_ESCAPE:
                     self.sdl_rendering.toggle_fullscreen()
-
-            # Removing since audio routing is controlled by projectMAR
-            # case sdl2.SDLK_i:
-            #     if modifier_pressed:
-            #         self.audio_capture.next_audio_device()
-
-            case sdl2.SDLK_n:
-                log.debug('User has requested the next preset')
-                self.projectm_wrapper.next_preset()
-
-            case sdl2.SDLK_p:
-                self.projectm_wrapper.previous_preset()
-                log.debug('User has requested the previous preset')
-
-            case sdl2.SDLK_q:
-                if modifier_pressed:
-                    log.info('User initiated exit!')
-                    self.thread_event.set()
-
-            case sdl2.SDLK_y:
-                if modifier_pressed:
-                    if self.projectm_wrapper.get_preset_shuffle():
-                        self.projectm_wrapper.shuffle_playlist(False)
-                    else:
-                        log.info('User has initiated playlist shuffling')
-                        self.projectm_wrapper.shuffle_playlist(True)
-
-            case sdl2.SDLK_DELETE:
-                log.warning(f'User has opted to remove preset {self.projectm_wrapper.current_preset}')
-                self.projectm_wrapper.delete_preset(physical=True)
-
-            case sdl2.SDLK_SPACE:
-                log.info(f'Preset lock status: {self.projectm_wrapper.get_preset_locked()}')
-                if self.projectm_wrapper.get_preset_locked():
-                    self.projectm_wrapper.lock_preset(False)
-                else:
-                    log.info('User has initiated a preset lock')
-                    self.projectm_wrapper.lock_preset(True)
             
-            case sdl2.SDLK_ESCAPE:
-                self.sdl_rendering.toggle_fullscreen()
-            
-            case sdl2.SDLK_UP:
-                self.projectm_wrapper.change_beat_sensitivity(.1)
+                case sdl2.SDLK_UP:
+                    self.projectm_wrapper.change_beat_sensitivity(.1)
 
-            case sdl2.SDLK_DOWN:
-                self.projectm_wrapper.change_beat_sensitivity(-.1)
+                case sdl2.SDLK_DOWN:
+                    self.projectm_wrapper.change_beat_sensitivity(-.1)
 
-            case _:
-                pass
+                case _:
+                    pass
 
     def controller_axis_event(self, event):
         axis = event.caxis.axis
@@ -254,27 +272,63 @@ class RenderingLoop:
     def controller_button_event(self, event, button_down):
         button = event.cbutton.button
 
-        match event.cbutton.button:
-            case sdl2.SDL_CONTROLLER_BUTTON_LEFTSTICK | sdl2.SDL_CONTROLLER_BUTTON_RIGHTSTICK:
-                self.projectm_wrapper.toggle_preset_lock()
+        if button_down:
+            self.input_down_catalog.add(button)
+            self.input_down_time_catalog[button] = time.time()
 
-            case sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
-                self.projectm_wrapper.change_beat_sensitivity(0.1)
+            if (sdl2.SDL_CONTROLLER_BUTTON_BACK in self.input_down_catalog and
+                sdl2.SDL_CONTROLLER_BUTTON_B in self.input_down_catalog):
+                log.warning(f'User has opted to remove preset {self.projectm_wrapper.current_preset}')
+                self.projectm_wrapper.delete_preset(physical=True)
 
-            case sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-                self.projectm_wrapper.change_beat_sensitivity(-0.1)
+            match button:
+                case sdl2.SDL_CONTROLLER_BUTTON_LEFTSTICK | sdl2.SDL_CONTROLLER_BUTTON_RIGHTSTICK:
+                    self.projectm_wrapper.toggle_preset_lock()
 
-            case sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-                self.projectm_wrapper.previous_preset()
-                log.debug('User has requested the previous preset')
+                case sdl2.SDL_CONTROLLER_BUTTON_DPAD_UP:
+                    self.projectm_wrapper.change_beat_sensitivity(0.1)
 
-            case sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-                self.projectm_wrapper.next_preset()
-                log.debug('User has requested the next preset')
+                case sdl2.SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                    self.projectm_wrapper.change_beat_sensitivity(-0.1)
 
-            case _:
-                log.info(f'unhandled controller button {hex(button)}')
-                pass
+                case sdl2.SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                    self.projectm_wrapper.previous_preset()
+                    log.debug('User has requested the previous preset')
+
+                case sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                    self.projectm_wrapper.next_preset()
+                    log.debug('User has requested the next preset')
+
+                case sdl2.SDL_CONTROLLER_BUTTON_BACK:
+                    pass
+
+                case sdl2.SDL_CONTROLLER_BUTTON_START:
+                    pass
+
+                case sdl2.SDL_CONTROLLER_BUTTON_A:
+                    pass
+
+                case sdl2.SDL_CONTROLLER_BUTTON_B:
+                    pass
+
+                case sdl2.SDL_CONTROLLER_BUTTON_X:
+                    pass
+
+                case sdl2.SDL_CONTROLLER_BUTTON_Y:
+                    pass
+
+                case _:
+                    log.info(f'unhandled controller button {button} ({hex(button)})')
+                    pass
+        else:
+            self.input_down_catalog.discard(button)
+            press_time = self.input_down_time_catalog.pop(button, None)
+            if press_time is not None:
+                held_duration = time.time() - press_time
+                if held_duration >= 3.0:
+
+                    if button == sdl2.SDL_CONTROLLER_BUTTON_GUIDE:
+                        log.warning('User initiated guide hold mode')
 
     def window_event(self, event):
         match event.window.event:
@@ -282,11 +336,9 @@ class RenderingLoop:
                 self.thread_event.set()
 
             case sdl2.SDL_WINDOWEVENT_RESIZED | sdl2.SDL_WINDOWEVENT_SIZE_CHANGED:
-                w, h = ctypes.c_int(), ctypes.c_int()
-                sdl2.SDL_GetWindowSize(self.sdl_rendering.rendering_window, ctypes.byref(w), ctypes.byref(h))
-                width, height = w.value, h.value
+                w, h = event.window.data1, event.window.data2
 
-                self.projectm_wrapper.set_window_size(width, height)
+                self.projectm_wrapper.set_window_size(w, h)
 
             case sdl2.SDL_WINDOWEVENT_HIDDEN | sdl2.SDL_WINDOWEVENT_MINIMIZED:
                 log.debug('Restoring the window!')
@@ -302,6 +354,22 @@ class RenderingLoop:
             case _:
                 pass
 
+    def controller_added_event(self, event):
+        device_index = event.cdevice.which
+        if sdl2.SDL_IsGameController(device_index):
+            controller = sdl2.SDL_GameControllerOpen(device_index)
+            if controller:
+                instance_id = sdl2.SDL_JoystickInstanceID(sdl2.SDL_GameControllerGetJoystick(controller))
+                self.controllers[instance_id] = controller
+                log.info(f"Controller added: {device_index} (instance {instance_id})")
+
+    def controller_removed_event(self, event):
+        instance_id = event.cdevice.which
+        controller = self.controllers.get(instance_id)
+        if controller:
+            sdl2.SDL_GameControllerClose(controller)
+            log.info(f"Controller removed: instance {instance_id}")
+            del self.controllers[instance_id]
 
     def poll_events(self):
         event = sdl2.SDL_Event()
@@ -314,6 +382,15 @@ class RenderingLoop:
                 
                 case sdl2.SDL_KEYDOWN:
                     self.key_event(event, True)
+
+                case sdl2.SDL_KEYUP:
+                    self.key_event(event, False)
+
+                case sdl2.SDL_CONTROLLERDEVICEADDED:
+                    self.controller_added_event(event)
+
+                case sdl2.SDL_CONTROLLERDEVICEREMOVED:
+                    self.controller_removed_event(event)
 
                 case sdl2.SDL_CONTROLLERAXISMOTION:
                     self.controller_axis_event(event)

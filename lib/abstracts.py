@@ -21,19 +21,6 @@ class Controller:
         self._thread_event = thread_event
         self._processes = dict()
         self._running_processes = dict()
-        self._environment = self._get_environment()
-
-    """Determine the current running environment based on the contents of /boot/issue.txt"""
-    def _get_environment(self):
-        with open('/boot/issue.txt', 'r') as infile:
-            data = infile.read()
-            for line in data.splitlines():
-                if 'stage2' in line:
-                    return 'lite'
-                elif 'stage4' in line:
-                    return 'desktop'
-                
-        return None
         
     """Obtain all of the current running processes"""
     def _get_running_processes(self):

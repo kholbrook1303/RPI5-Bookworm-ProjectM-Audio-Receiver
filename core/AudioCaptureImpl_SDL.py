@@ -32,7 +32,8 @@ class AudioCaptureImpl:
         sdl2.SDL_SetHint(sdl2.SDL_HINT_AUDIO_INCLUDE_MONITORS, b"1")
         sdl2.SDL_InitSubSystem(sdl2.SDL_INIT_AUDIO)
 
-    def __del__(self):
+    def close(self):
+        self.stop_recording()
         sdl2.SDL_QuitSubSystem(sdl2.SDL_INIT_AUDIO)
 
     def set_capture_started(self):
