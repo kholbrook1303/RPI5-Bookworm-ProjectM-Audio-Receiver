@@ -369,7 +369,7 @@ class ProjectMWrapper:
         if self.sprites[sprite_index]['id'] == 0:
             self._show_sprite(sprite_index)
         else:
-            self.kill_sprite(sprite_index)
+            self._kill_sprite(sprite_index)
 
     def kill_sprites(self):
         if len(self.sprites) == 0:
