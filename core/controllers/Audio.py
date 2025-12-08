@@ -34,7 +34,8 @@ class AudioCtrl(Controller, threading.Thread):
         
         self.devices                = DeviceCatalog()
 
-        self.ar_sink                = 'platform-project_mar.stereo'
+        self.ar_sink_name           = 'platform-project_mar.stereo'
+        self.ar_sink_desc           = 'ProjectMAR-NULL-Sink'
 
         config_path = os.path.join(APP_ROOT, 'conf')
         self.supported_cards = self.load_audio_config(config_path, 'audio_cards.conf')
@@ -324,7 +325,7 @@ class AudioCtrl(Controller, threading.Thread):
     @param sink: The PulseAudio sink object to add.
     """
     def add_sink_device(self, sink):
-        if sink.name == self.ar_sink:
+        if sink.name == self.ar_sink_name:
             return
 
         if sink.name == 'combined':
@@ -388,19 +389,24 @@ class AudioCtrl(Controller, threading.Thread):
         if source.name.startswith('bluez_source'):
             return
 
-        log.debug('Found source device: {} {}'.format(source.name, source))
+        log.info('Found source device: {} {}'.format(source.name, source))
 
         if source.name.startswith('alsa_output'):
             loopback_modules = self.get_modules('module-loopback')
-            if not any(lm.args['source'] == source.name and lm.args['sink'] == self.ar_sink for lm in loopback_modules):
-                self.load_loopback_module(source.name, self.ar_sink)
+            if not any(lm.args['source'] == source.name and lm.args['sink'] == self.ar_sink_name for lm in loopback_modules):
+                self.load_loopback_module(source.name, self.ar_sink_name)
 
-            log.debug('Source device: {} is not supported'.format(source.name))
+            log.warning('Source device: {} is not supported'.format(source.name))
             self.devices.unsupported_sources[source.name] = source
             return
 
         if source.name.endswith('.monitor'):
-            log.debug('Source device: {} is not supported'.format(source.name))
+            log.warning('Source device: {} is not supported'.format(source.name))
+            self.devices.unsupported_sources[source.name] = source
+            return
+
+        if source.description and 'USB3.0 Capture' in source.description:
+            log.warning('Source device: {} is not supported'.format(source.name))
             self.devices.unsupported_sources[source.name] = source
             return
 
@@ -454,7 +460,7 @@ class AudioCtrl(Controller, threading.Thread):
                 self.load_loopback_module(source.name, sink.name)
 
         elif self.sink_device and source_type == 'mic':
-            self.load_loopback_module(source.name, self.ar_sink)
+            self.load_loopback_module(source.name, self.ar_sink_name)
 
         source.type = source_type
         source.device = 'pa'
@@ -502,7 +508,7 @@ class AudioCtrl(Controller, threading.Thread):
         # Load null sink
         self.pulse_audio_callback('module_load', [
             'module-null-sink',
-            f'sink_name={self.ar_sink} sink_properties=device.description=ProjectMAR-NULL-Sink'
+            f'sink_name={self.ar_sink_name} sink_properties=device.description={self.ar_sink_desc}'
             ])
 
         # Set null sink monitor as default
@@ -585,10 +591,10 @@ class AudioCtrl(Controller, threading.Thread):
             except Exception as e:
                 log.exception(f'Unhandled exception in PulseAudio thread: {e}')
 
-        log.info('Stopping ProjectMAR PulseAudio Event Listener')
+        log.info('ProjectMAR PulseAudio Event Listener has stopped')
 
     """Close the PulseAudio connection and unload modules"""
-    def close(self):            
+    def close(self):
         for source_index, source_device in self.devices.source.items():
             if not source_device.name.startswith('bluez_source'):
                 self.unload_loopback_modules(source_name=source_device.name)

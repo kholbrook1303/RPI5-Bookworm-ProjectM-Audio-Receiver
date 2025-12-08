@@ -1,26 +1,27 @@
 import logging
 
-log = logging.getLogger()
-
 from core.AudioCaptureImpl_SDL import AudioCaptureImpl
+
+log = logging.getLogger()
 
 class AudioCapture:
     def __init__(self, config, projectm_wrapper):
         self.config = config
         self.projectm_wrapper = projectm_wrapper
 
-        self.audio_capture_impl = AudioCaptureImpl(self.config , projectm_wrapper)
+        self.audio_capture_impl = AudioCaptureImpl(self.config, projectm_wrapper)
         deviceList = self.audio_capture_impl.audio_device_list()
         audioDeviceIndex = self.get_initial_audio_device_index(deviceList)
 
         self.output_device_list(deviceList)
-
         self.audio_capture_impl.start_recording(audioDeviceIndex)
 
-    def __del__(self):
+    def close(self):
         if self.audio_capture_impl:
-            self.audio_capture_impl.stop_recording()
-            del self.audio_capture_impl
+            self.audio_capture_impl.close()
+
+    def fill_buffer(self):
+        self.audio_capture_impl.fill_buffer()
 
     def output_device_list(self, deviceList):
         log.info(f'Available audio capturing devices:')

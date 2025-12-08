@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+import time
 
 from lib.abstracts import Controller
 from lib.config import APP_ROOT, Config
@@ -26,6 +27,7 @@ class PluginCtrl(Controller, threading.Thread):
 
     """Run the plugins controller thread"""
     def run(self):
+        time.sleep(5)  # Give some time for other systems to initialize)
         self._get_running_processes()
         plugins = self.audio_plugins_config.general.get('audio_plugins', list())
         for plugin in plugins:

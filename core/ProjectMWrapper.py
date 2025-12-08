@@ -6,6 +6,7 @@ import re
 import time
 import shutil
 
+from OpenGL import GL
 import numpy as np
 
 from lib.common import load_library
@@ -74,6 +75,8 @@ class ProjectMWrapper:
         self.projectm_lib.projectm_get_mesh_size.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t), ctypes.POINTER(ctypes.c_size_t)]
         self.projectm_lib.projectm_get_preset_locked.argtypes = [ctypes.c_void_p]
         self.projectm_lib.projectm_get_preset_locked.restype = ctypes.c_bool
+        self.projectm_lib.projectm_pcm_get_max_samples.argtypes = [ctypes.c_void_p]
+        self.projectm_lib.projectm_pcm_get_max_samples.restype = ctypes.c_uint
         self.projectm_lib.projectm_pcm_add_float.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint, ctypes.c_int]
         self.projectm_lib.projectm_pcm_add_float.restype = None
         self.projectm_lib.projectm_set_texture_search_paths.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p)), ctypes.c_int]
@@ -115,6 +118,8 @@ class ProjectMWrapper:
             canvas_width = ctypes.c_int()
             canvas_height = ctypes.c_int()
 
+            self.sdl_rendering.get_drawable_size(ctypes.byref(canvas_width), ctypes.byref(canvas_height))
+
             self.projectm = self.projectm_lib.projectm_create()
             if not self.projectm:
                 log.error("Failed to initialize projectM. Possible reasons are a lack of required OpenGL features or GPU resources.")
@@ -124,7 +129,7 @@ class ProjectMWrapper:
             if fps <= 0:
                 fps = 60
 
-            self.set_window_size(canvas_width, canvas_height)
+            self.projectm_lib.projectm_set_window_size(self.projectm, canvas_width, canvas_height)
             self.projectm_lib.projectm_set_fps(self.projectm, fps)
             self.projectm_lib.projectm_set_mesh_size(self.projectm, self.config.projectm.get("projectm.meshx", 64), self.config.projectm.get("projectm.meshy", 32))
             self.projectm_lib.projectm_set_aspect_correction(self.projectm, self.config.projectm.get("projectm.aspectcorrectionenabled", True))
@@ -140,9 +145,6 @@ class ProjectMWrapper:
             if not self.projectm_playlist:
                 log.error("Failed to create the projectM preset playlist manager instance.")
                 raise RuntimeError("Playlist initialization failed")
-
-            # self.projectm_playlist_lib.projectm_playlist_set_shuffle(self.projectm_playlist, self.config.projectm.get("projectm.shuffleenabled", False))
-            self.projectm_playlist_lib.projectm_playlist_set_shuffle(self.projectm_playlist, False)
 
             texture_path_index = 0
             while True:
@@ -167,6 +169,9 @@ class ProjectMWrapper:
                     texture_path_array[i] = ctypes.cast(ctypes.pointer(path), ctypes.POINTER(ctypes.c_char_p))
 
                 self.projectm_lib.projectm_set_texture_search_paths(self.projectm, texture_path_array, len(self.texture_paths))
+
+            # self.projectm_playlist_lib.projectm_playlist_set_shuffle(self.projectm_playlist, self.config.projectm.get("projectm.shuffleenabled", False))
+            self.projectm_playlist_lib.projectm_playlist_set_shuffle(self.projectm_playlist, False)
 
             preset_path_index = 0
             while True:
@@ -230,7 +235,7 @@ class ProjectMWrapper:
                 self._user_data_ptr
             )
 
-    def __del__(self):
+    def close(self):
         if self.projectm:
             self.projectm_lib.projectm_destroy(self.projectm)
             self.projectm = None
@@ -242,7 +247,8 @@ class ProjectMWrapper:
     def create_indexed_presets(self, presets):
         for index, preset in enumerate(presets, start=1):
             idx_pad = f"{index:06}"
-            preset_root, preset_name = preset.rsplit('/', 1)
+            preset_root = os.path.dirname(preset)
+            preset_name = os.path.basename(preset)
             if not re.match(r'^\d{6}\s.*?\.milk', preset_name, re.I):
                 preset_name_stripped = preset_name
             else:
@@ -342,10 +348,10 @@ class ProjectMWrapper:
         locked = self.get_preset_locked()
         if locked:
             log.debug(f'User has requested to unlock the presets')
-            self.projectm_wrapper.lock_preset(False)
+            self.projectm_lib.projectm_set_preset_locked(self.projectm, False)
         else:
             log.debug(f'User has requested to lock the presets')
-            self.projectm_wrapper.lock_preset(True)
+            self.projectm_lib.projectm_set_preset_locked(self.projectm, True)
 
     def change_beat_sensitivity(self, value):
         current = self.projectm_lib.projectm_get_beat_sensitivity(self.projectm)
@@ -367,6 +373,28 @@ class ProjectMWrapper:
         )
 
     def render_frame(self):
+        GL.glClearColor(0.0, 0.0, 0.0, 0.0);
+        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+        current_mesh_x = ctypes.c_size_t()
+        current_mesh_y = ctypes.c_size_t()
+        self.projectm_lib.projectm_get_mesh_size(
+            self.projectm,
+            ctypes.byref(current_mesh_x),
+            ctypes.byref(current_mesh_y)
+        )
+
+        desired_mesh_x = self.config.projectm.get("projectm.meshx", 220)
+        desired_mesh_y = self.config.projectm.get("projectm.meshy", 125)
+
+        if (current_mesh_x.value != desired_mesh_x) or (current_mesh_y.value != desired_mesh_y):
+            log.info(f'Updating mesh size from {current_mesh_x.value}x{current_mesh_y.value} to {desired_mesh_x}x{desired_mesh_y}')
+            self.projectm_lib.projectm_set_mesh_size(
+                self.projectm,
+                int(desired_mesh_x),
+                int(desired_mesh_y)
+            )
+
         self.projectm_lib.projectm_opengl_render_frame(self.projectm)
 
     def target_fps(self):
