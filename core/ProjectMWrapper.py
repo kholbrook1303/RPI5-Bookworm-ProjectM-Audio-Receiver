@@ -9,7 +9,10 @@ import shutil
 from OpenGL import GL
 import numpy as np
 
+from configparser import ConfigParser
+
 from lib.common import load_library
+from lib.config import APP_ROOT
 
 log = logging.getLogger()
 
@@ -27,12 +30,12 @@ PresetSwitchFailedCallback = ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_vo
 @PresetSwitchedCallback
 def on_preset_switched(is_hard_cut, index, context):
     instance = ctypes.cast(context, ctypes.POINTER(ctypes.py_object)).contents.value
-    instance.on_preset_switched(is_hard_cut, index)
+    instance._on_preset_switched(is_hard_cut, index)
 
 @PresetSwitchFailedCallback
 def on_preset_switch_failed(error_msg, context):
     instance = ctypes.cast(context, ctypes.POINTER(ctypes.py_object)).contents.value
-    instance.on_preset_switch_failed(error_msg)
+    instance._on_preset_switch_failed(error_msg)
 
 class ProjectMWrapper:
     def __init__(self, config, sdl_rendering):
@@ -51,6 +54,9 @@ class ProjectMWrapper:
 
         self.preset_paths = list()
         self.texture_paths = list()
+        self.sprites = dict()
+
+        self.texture_burn_in = False
 
         self.current_preset = None
         self.current_preset_start = None
@@ -81,12 +87,49 @@ class ProjectMWrapper:
         self.projectm_lib.projectm_pcm_add_float.restype = None
         self.projectm_lib.projectm_set_texture_search_paths.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_char_p)), ctypes.c_int]
         self.projectm_lib.projectm_set_texture_search_paths.restype = None
+        
+        # Future user sprites feature (This feature is currently available in the main branch and slated for 4.2 release)
+        try:
+            self.projectm_lib.projectm_sprite_create.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+            self.projectm_lib.projectm_sprite_create.restype = ctypes.c_uint
+            self.projectm_lib.projectm_sprite_get_sprite_count.argtypes = [ctypes.c_void_p]
+            self.projectm_lib.projectm_sprite_get_sprite_count.restype = ctypes.c_uint32
+            self.projectm_lib.projectm_sprite_get_sprite_ids.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+            self.projectm_lib.projectm_sprite_get_sprite_ids.restype = None
+            self.projectm_lib.projectm_sprite_get_max_sprites.argtypes = [ctypes.c_void_p]
+            self.projectm_lib.projectm_sprite_get_max_sprites.restype = ctypes.c_uint
+            self.projectm_lib.projectm_sprite_destroy.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+            self.projectm_lib.projectm_sprite_destroy.restype = None
+            self.projectm_lib.projectm_sprite_destroy_all.argtypes = [ctypes.c_void_p]
+            self.projectm_lib.projectm_sprite_destroy_all.restype = None
 
-        # Future user sprites feature
-        # self.projectm_lib.projectm_sprite_create.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
-        # self.projectm_lib.projectm_sprite_create.restype = ctypes.c_uint
-        # self.projectm_lib.projectm_sprite_get_max_sprites.argtypes = [ctypes.c_void_p]
-        # self.projectm_lib.projectm_sprite_get_max_sprites.restype = ctypes.c_uint
+            self.projectm_lib.projectm_opengl_burn_texture.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+            self.projectm_lib.projectm_opengl_burn_texture.restype = None
+            self.texture_burn_in = True
+
+            sprites_config = ConfigParser(allow_no_value=True)
+            config_path = os.path.join(APP_ROOT, 'conf', 'sprites.conf')
+            sprites_config.read(config_path)
+            for section in sprites_config.sections():
+                sprite_index = section[-2:]
+                self.sprites[sprite_index] = {
+                    'id': 0,
+                    'code': ''
+                }
+
+                for name, str_value in sprites_config.items(section):
+                    self.sprites[sprite_index]['code'] += f'{name}={str_value}\n'
+
+        except AttributeError as e:
+            log.warning(f'The loaded libprojectM does not support sprites. This feature requires libprojectM (4.2+): {e}')
+
+        try:
+            self.projectm_lib.projectm_opengl_burn_texture.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int]
+            self.projectm_lib.projectm_opengl_burn_texture.restype = None
+
+            self.texture_burn_in = True
+        except AttributeError as e:
+            log.warning(f'The loaded libprojectM does not support texture burn-in. This feature requires libprojectM (4.2+): {e}')
 
         # Set up projectm playlist function signatures
         self.projectm_playlist_lib.projectm_playlist_create.argtypes = [ctypes.c_void_p]
@@ -199,7 +242,7 @@ class ProjectMWrapper:
                                 presets.append(preset_path)
 
                 random.shuffle(presets)
-                self.create_indexed_presets(presets)
+                self._create_indexed_presets(presets)
 
             for preset_path in self.preset_paths:
                 if os.path.isfile(preset_path):
@@ -243,8 +286,21 @@ class ProjectMWrapper:
             self.projectm_playlist_lib.projectm_playlist_destroy(self.projectm_playlist)
             self.projectm_playlist = None
 
+    def _show_sprite(self, sprite_index):
+        sprite_id = self.projectm_lib.projectm_sprite_create(self.projectm, 'milkdrop'.encode(), self.sprites[sprite_index]['code'].encode())
+        log.info(f'Sprite created with ID: {sprite_id} {type(sprite_id)}')
+        self.sprites[sprite_index]['id'] = sprite_id
+        return sprite_id
+
+    def _kill_sprite(self, sprite_index):
+        sprite_id = self.sprites[sprite_index]['id']
+
+        log.info(f'Destroying sprite with index {sprite_id}...')
+        self.projectm_lib.projectm_sprite_destroy(self.projectm, sprite_id)
+        self.sprites[sprite_index]['id'] = 0
+
     """Create indexed presets by renaming them with a six-digit index"""
-    def create_indexed_presets(self, presets):
+    def _create_indexed_presets(self, presets):
         for index, preset in enumerate(presets, start=1):
             idx_pad = f"{index:06}"
             preset_root = os.path.dirname(preset)
@@ -259,7 +315,7 @@ class ProjectMWrapper:
             except Exception as e:
                 log.error(f'Failed to rename preset {preset}: {e}')
 
-    def on_preset_switched(self, is_hard_cut: bool, index: int):
+    def _on_preset_switched(self, is_hard_cut: bool, index: int):
         name_ptr = self.projectm_playlist_lib.projectm_playlist_item(self.projectm_playlist, index)
         self.current_preset = ctypes.string_at(name_ptr).decode("utf-8")
         self.current_preset_start = time.time()
@@ -268,19 +324,62 @@ class ProjectMWrapper:
         if self.config.projectm.get("window.displaypresetnameintitle", True):
             self.sdl_rendering.set_sdl_window_title(self.current_preset.rsplit('/', 1)[1].encode())
 
-    def on_preset_switch_failed(self, error_msg: str):
+    def _on_preset_switch_failed(self, error_msg: str):
         error_string = ctypes.string_at(error_msg).decode("utf-8")
         log.error(f'Failed to switch preset with error {error_string}')
 
-    def get_active_preset_index(self):
-        return self.projectm_playlist_lib.projectm_playlist_get_position(self.projectm_playlist)
-
-    def get_preset_item(self, index):
+    def _get_preset_item(self, index):
         item = self.projectm_playlist_lib.projectm_playlist_item(self.projectm_playlist, index)
         if not item:
             raise IndexError(f"Item at index {index} does not exist in the playlist")
 
         return item.decode('utf-8')
+
+    def _get_active_preset_index(self):
+        return self.projectm_playlist_lib.projectm_playlist_get_position(self.projectm_playlist)
+
+    def _get_mesh_size(self):
+        mesh_x = ctypes.c_size_t()
+        mesh_y = ctypes.c_size_t()
+        self.projectm_lib.projectm_get_mesh_size(self.projectm, ctypes.byref(mesh_x), ctypes.byref(mesh_y))
+        return mesh_x.value, mesh_y.value
+
+    def burn_in_texture(self, texture_id, x, y, width, height):
+        if not self.texture_burn_in:
+            log.warning('Texture burn-in is not supported in the loaded libprojectM, cannot burn texture')
+            return
+
+        self.projectm_lib.projectm_opengl_burn_texture(self.projectm, texture_id, x, y, width, height)
+
+    def handle_sprite(self, sprite_index):
+        if len(self.sprites) == 0:
+            log.warning(f'Sprites are not enabled in the loaded libprojectM, cannot create sprite with index {sprite_index}')
+            return
+
+        if not self.sprites.get(sprite_index):
+            log.warning(f'No sprite found with index {sprite_index}')
+            return
+
+        sprite_count = self.projectm_lib.projectm_sprite_get_sprite_count(self.projectm)
+        max_sprites = self.projectm_lib.projectm_sprite_get_max_sprites(self.projectm)
+        if sprite_count >= max_sprites:
+            log.warning(f'Cannot create sprite with index {sprite_index}, maximum number of sprites ({max_sprites}) already created')
+            return
+
+        if self.sprites[sprite_index]['id'] == 0:
+            self._show_sprite(sprite_index)
+        else:
+            self._kill_sprite(sprite_index)
+
+    def kill_sprites(self):
+        if len(self.sprites) == 0:
+            log.warning('Sprites are not enabled in the loaded libprojectM, cannot destroy sprites')
+            return
+
+        log.info('Destroying all sprites...')
+        self.projectm_lib.projectm_sprite_destroy_all(self.projectm)
+        for name, info in self.sprites.items():
+            info['id'] = 0
 
     def display_initial_preset(self):
         if not self.config.projectm.get("projectm.enablesplash", False):
@@ -294,9 +393,9 @@ class ProjectMWrapper:
             #     self.projectm_playlist_lib.projectm_playlist_set_position(self.projectm_playlist, 0, True)
 
     def delete_preset(self, physical=False):
-        preset_index = self.get_active_preset_index()
+        preset_index = self._get_active_preset_index()
         if preset_index:
-            preset_name = self.get_preset_item(preset_index)
+            preset_name = self._get_preset_item(preset_index)
 
             log.info(f'User has requested to delete preset {preset_name} with index {preset_index}')
             self.projectm_playlist_lib.projectm_playlist_remove_preset(self.projectm_playlist, preset_index)
@@ -376,19 +475,13 @@ class ProjectMWrapper:
         GL.glClearColor(0.0, 0.0, 0.0, 0.0);
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        current_mesh_x = ctypes.c_size_t()
-        current_mesh_y = ctypes.c_size_t()
-        self.projectm_lib.projectm_get_mesh_size(
-            self.projectm,
-            ctypes.byref(current_mesh_x),
-            ctypes.byref(current_mesh_y)
-        )
+        actual_mesh_x, actual_mesh_y = self._get_mesh_size()
 
         desired_mesh_x = self.config.projectm.get("projectm.meshx", 220)
         desired_mesh_y = self.config.projectm.get("projectm.meshy", 125)
 
-        if (current_mesh_x.value != desired_mesh_x) or (current_mesh_y.value != desired_mesh_y):
-            log.info(f'Updating mesh size from {current_mesh_x.value}x{current_mesh_y.value} to {desired_mesh_x}x{desired_mesh_y}')
+        if (actual_mesh_x != desired_mesh_x) or (actual_mesh_y != desired_mesh_y):
+            log.info(f'Updating mesh size from {actual_mesh_x}x{actual_mesh_y} to {desired_mesh_x}x{desired_mesh_y}')
             self.projectm_lib.projectm_set_mesh_size(
                 self.projectm,
                 int(desired_mesh_x),
@@ -402,9 +495,3 @@ class ProjectMWrapper:
 
     def update_real_fps(self, fps):
         self.projectm_lib.projectm_set_fps(self.projectm, int(round(fps)))
-
-    def get_mesh_size(self):
-        mesh_x = ctypes.c_size_t()
-        mesh_y = ctypes.c_size_t()
-        self.projectm_lib.projectm_get_mesh_size(self.projectm, ctypes.byref(mesh_x), ctypes.byref(mesh_y))
-        return mesh_x.value, mesh_y.value

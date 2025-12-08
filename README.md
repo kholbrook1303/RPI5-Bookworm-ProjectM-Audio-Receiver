@@ -70,18 +70,21 @@ Handles key presses, with support for modifier keys like **Ctrl**.
 
 ### Key Bindings
 
-| Key            | With Ctrl? | Action                                  |
-|----------------|------------|-----------------------------------------|
-| `F`            | ✅         | Toggle fullscreen mode                  |
-| `N`            | ❌         | Load **next preset**                    |
-| `P`            | ❌         | Load **previous preset**                |
-| `Q`            | ✅         | **Exit** the application                |
-| `Y`            | ✅         | Toggle **playlist shuffle** mode        |
-| `Delete`       | ❌         | **Delete** current preset               |
-| `Space`        | ❌         | Toggle **preset lock**                  |
-| `Escape`       | ❌         | Toggle fullscreen mode                  |
-| `Arrow Up`     | ❌         | Increase **beat sensitivity** (+0.1)    |
-| `Arrow Down`   | ❌         | Decrease **beat sensitivity** (−0.1)    |
+| Key          | With Ctrl? | Action                                                    |
+| ------------ | ---------- | --------------------------------------------------------- |
+| `F`          | ✅          | Toggle **fullscreen mode**                                |
+| `K`          | ✅          | **Kill** all active sprites                               |
+| `L`          | ❌          | Trigger **logo sprite(s)**                                |
+| `N`          | ❌          | Load **next preset**                                      |
+| `P`          | ❌          | Load **previous preset**                                  |
+| `Q`          | ✅          | **Exit** the application                                  |
+| `Y`          | ✅          | Toggle **playlist shuffle** mode                          |
+| `Delete`     | ❌          | **Delete** current preset                                 |
+| `Space`      | ❌          | Toggle **preset lock**                                    |
+| `Escape`     | ❌          | Toggle **fullscreen mode**                                |
+| `Arrow Up`   | ❌          | Increase **beat sensitivity** (+0.1)                      |
+| `Arrow Down` | ❌          | Decrease **beat sensitivity** (−0.1)                      |
+| `0–9`        | ❌          | Enter **sprite index digits** (triggers on 2-digit entry) |
 
 ---
 
@@ -106,13 +109,17 @@ Handles digital controller buttons such as D-Pad and stick clicks.
 
 ### Button Bindings
 
-| Button                           | Action                        |
-|----------------------------------|-------------------------------|
-| Left Stick Click / Right Stick Click | Toggle **preset lock**      |
-| D-Pad Up                         | Increase **beat sensitivity** (+0.1) |
-| D-Pad Down                       | Decrease **beat sensitivity** (−0.1) |
-| D-Pad Left                       | Load **previous preset**      |
-| D-Pad Right                      | Load **next preset**          |
+| Button / Combo                       | Action                                     |
+| ------------------------------------ | ------------------------------------------ |
+| Left Stick Click / Right Stick Click | Toggle **preset lock**                     |
+| D-Pad Up                             | Increase **beat sensitivity** (+0.1)       |
+| D-Pad Down                           | Decrease **beat sensitivity** (−0.1)       |
+| D-Pad Left                           | Load **previous preset**                   |
+| D-Pad Right                          | Load **next preset**                       |
+| `BACK + B` (pressed together)        | **Delete** current preset                  |
+| `GUIDE`                              | Trigger **logo sprite(s)** (if configured) |
+| `GUIDE` (held ≥ 3 seconds)           | Enter **guide hold mode** (logs event)     |
+
 
 ---
 

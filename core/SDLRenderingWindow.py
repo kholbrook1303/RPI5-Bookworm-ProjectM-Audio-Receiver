@@ -16,8 +16,6 @@ class SDLRenderingWindow:
         self.last_window_width = ctypes.c_int()
         self.last_window_height = ctypes.c_int()
 
-        self.controllers = list()
-
         self.create_sdl_window()
 
     def close(self):

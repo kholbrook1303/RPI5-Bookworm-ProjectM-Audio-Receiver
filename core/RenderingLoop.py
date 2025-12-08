@@ -80,11 +80,14 @@ class RenderingLoop:
                         self.controllers[instance_id] = controller
                         log.info(f"Controller {instance_id} connected: {sdl2.SDL_GameControllerName(controller).decode()}")
 
+        self.input_digits = ""
         self.input_down_catalog = set()
         self.input_down_time_catalog = {}
 
         self._renderWidth = None
         self._renderHeight = None
+
+        self._spriteLogo = self.config.projectm.get("projectm.spritelogo", False)
 
     def close(self):
         for controller in self.ctrl_threads:
@@ -165,6 +168,10 @@ class RenderingLoop:
         key_modifier = event.key.keysym.mod
         modifier_pressed = (key_modifier & sdl2.KMOD_LCTRL) or (key_modifier & sdl2.KMOD_RCTRL)
 
+        current_time = time.time()
+        if self.input_digits and current_time - self.last_digit_time > 3:
+            self.input_digits = ""
+
         key = event.key.keysym.sym
 
         if key_down:
@@ -177,6 +184,15 @@ class RenderingLoop:
                 # case sdl2.SDLK_i:
                 #     if modifier_pressed:
                 #         self.audio_capture.next_audio_device()
+
+                case sdl2.SDLK_k:
+                    if modifier_pressed:
+                        self.projectm_wrapper.kill_sprites()
+
+                case sdl2.SDLK_l:
+                    if self._spriteLogo:
+                        for spriteIdx in self._spriteLogo.split(','):
+                            self.projectm_wrapper.handle_sprite(spriteIdx)
 
                 case sdl2.SDLK_n:
                     log.debug('User has requested the next preset')
@@ -214,6 +230,18 @@ class RenderingLoop:
 
                 case sdl2.SDLK_DOWN:
                     self.projectm_wrapper.change_beat_sensitivity(-.1)
+
+                case key if sdl2.SDLK_0 <= key <= sdl2.SDLK_9:
+                    digit = chr(key)
+                    self.input_digits += digit
+                    self.last_digit_time = current_time
+
+                    log.info(f"Digit entered: {digit}, current input: {self.input_digits}")
+
+                    if len(self.input_digits) == 2:
+                        log.info(f"User entered sprite number: {self.input_digits}")
+                        self.projectm_wrapper.handle_sprite(self.input_digits)
+                        self.input_digits = ""
 
                 case _:
                     pass
@@ -298,6 +326,11 @@ class RenderingLoop:
                 case sdl2.SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
                     self.projectm_wrapper.next_preset()
                     log.debug('User has requested the next preset')
+
+                case sdl2.SDL_CONTROLLER_BUTTON_GUIDE:
+                    if self._spriteLogo:
+                        for spriteIdx in self._spriteLogo.split(','):
+                            self.projectm_wrapper.handle_sprite(spriteIdx)
 
                 case sdl2.SDL_CONTROLLER_BUTTON_BACK:
                     pass
@@ -399,8 +432,8 @@ class RenderingLoop:
                     self.controller_button_event(event, True)
 
                 case sdl2.SDL_CONTROLLERBUTTONUP:
-                    pass
-                    
+                    self.controller_button_event(event, False)
+
                 case sdl2.SDL_MOUSEBUTTONDOWN:
                     if event.button.button == sdl2.SDL_BUTTON_RIGHT:
                         self.sdl_rendering.toggle_fullscreen()
