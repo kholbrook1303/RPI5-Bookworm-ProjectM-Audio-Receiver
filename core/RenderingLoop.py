@@ -327,7 +327,26 @@ class RenderingLoop:
                 case sdl2.SDL_MOUSEBUTTONDOWN:
                     if event.button.button == sdl2.SDL_BUTTON_RIGHT:
                         self.sdl_rendering.toggle_fullscreen()
-                        
+
+                case sdl2.SDL_FINGERDOWN:
+                    if self.config.projectm.get('touch.enabled', True):
+                        rotation = int(self.config.projectm.get('touch.rotation_degrees', 0)) % 360
+                        x, y = event.tfinger.x, event.tfinger.y
+
+                        is_left = {
+                            0: x < 0.5,
+                            90: y < 0.5,
+                            180: x >= 0.5,
+                            270: y >= 0.5,
+                        }.get(rotation, x < 0.5)
+
+                        if is_left:
+                            log.debug('Touch on left side - previous preset')
+                            self.projectm_wrapper.previous_preset()
+                        else:
+                            log.debug('Touch on right side - next preset')
+                            self.projectm_wrapper.next_preset()
+
                 case sdl2.SDL_WINDOWEVENT:
                     self.window_event(event)
 
