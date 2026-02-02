@@ -116,6 +116,14 @@ Handles digital controller buttons such as D-Pad and stick clicks.
 
 ---
 
+## 👆 Touch Input
+
+- Left half = **previous preset**
+- Right half = **next preset**
+- If the panel is physically rotated (and the OS is not), set `touch.rotation_degrees` to `0`, `90`, `180`, or `270` to map the touch axis.
+
+---
+
 ## 🗔 Window Events
 
 Handles SDL window-related system events.
